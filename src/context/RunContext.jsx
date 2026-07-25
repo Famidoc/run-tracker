@@ -274,6 +274,21 @@ export function RunProvider({ children }) {
     durationSecRef.current = durationSeconds;
   }, [durationSeconds]);
 
+  const triggerGoalReached = (textMsg) => {
+    setGoalReached(true);
+    if (settings.voiceCues) {
+      speakText(textMsg);
+    }
+    if (settings.goalReachedAction === 'autoPause') {
+      setIsPaused(true);
+      if (settings.voiceCues) {
+        setTimeout(() => {
+          speakText('運動已自動暫停，請確認是否儲存紀錄。');
+        }, 3500);
+      }
+    }
+  };
+
   // Update distance, calories, splits & goals helper
   const updateMetricsAndGoal = (incDist, speedKmh, currentSec) => {
     setDistanceKm((prevDist) => {
@@ -318,10 +333,7 @@ export function RunProvider({ children }) {
 
       // Check Goal Distance
       if (targetGoal.type === 'distance' && nextDist >= targetGoal.targetValue && !goalReached) {
-        setGoalReached(true);
-        if (settings.voiceCues) {
-          speakText(`太棒了！已達成目標里程 ${targetGoal.targetValue} 公里！`);
-        }
+        triggerGoalReached(`太棒了！已達成目標里程 ${targetGoal.targetValue} 公里！`);
       }
 
       return nextDist;
@@ -404,10 +416,7 @@ export function RunProvider({ children }) {
 
         // Time Goal check
         if (targetGoal.type === 'time' && nextSec >= targetGoal.targetValue * 60 && !goalReached) {
-          setGoalReached(true);
-          if (settings.voiceCues) {
-            speakText(`目標時間 ${targetGoal.targetValue} 分鐘已達成！`);
-          }
+          triggerGoalReached(`目標時間 ${targetGoal.targetValue} 分鐘已達成！`);
         }
 
         return nextSec;
@@ -417,7 +426,7 @@ export function RunProvider({ children }) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isTracking, isPaused, simulatorMode, profile.weightKg, settings.voiceCues, targetGoal, goalReached]);
+  }, [isTracking, isPaused, simulatorMode, profile.weightKg, settings.voiceCues, targetGoal, goalReached, settings.goalReachedAction]);
 
   // Real Device Geolocation Watcher
   useEffect(() => {

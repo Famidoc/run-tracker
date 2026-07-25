@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   useSimulator: false, // Default Real GPS for Production
   theme: 'dark',
   presetRoute: 'daan',
+  goalReachedAction: 'continue', // 'continue' | 'autoPause'
   defaultGoal: {
     type: 'free',
     distanceValue: 5.0,

@@ -240,6 +240,64 @@ export function SettingsScreen() {
             />
           </div>
 
+          {/* Goal Reached Behavior Selector */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px' }}>
+            <div style={{ fontWeight: '700', fontSize: '14px', marginBottom: '8px', color: '#FFF' }}>
+              達標後的動作處理
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                background: (settings.goalReachedAction || 'continue') === 'continue' ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                border: `1px solid ${(settings.goalReachedAction || 'continue') === 'continue' ? 'rgba(0, 230, 118, 0.4)' : 'rgba(255, 255, 255, 0.08)'}`,
+                cursor: 'pointer'
+              }}>
+                <input
+                  type="radio"
+                  name="goalReachedAction"
+                  checked={(settings.goalReachedAction || 'continue') === 'continue'}
+                  onChange={() => updateSettings({ ...settings, goalReachedAction: 'continue' })}
+                  style={{ accentColor: '#00E676' }}
+                />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: (settings.goalReachedAction || 'continue') === 'continue' ? '#00E676' : '#FFF' }}>
+                    🏃 播報達標時，繼續記錄，等按停止
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#8E9BAE' }}>語音祝賀達標，但持續記錄時間與位移，方便超額跑或暖身</div>
+                </div>
+              </label>
+
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                background: settings.goalReachedAction === 'autoPause' ? 'rgba(0, 229, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                border: `1px solid ${settings.goalReachedAction === 'autoPause' ? 'rgba(0, 229, 255, 0.4)' : 'rgba(255, 255, 255, 0.08)'}`,
+                cursor: 'pointer'
+              }}>
+                <input
+                  type="radio"
+                  name="goalReachedAction"
+                  checked={settings.goalReachedAction === 'autoPause'}
+                  onChange={() => updateSettings({ ...settings, goalReachedAction: 'autoPause' })}
+                  style={{ accentColor: '#00E5FF' }}
+                />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: settings.goalReachedAction === 'autoPause' ? '#00E5FF' : '#FFF' }}>
+                    ⏸️ 播報達標時，自動暫停，等按儲存
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#8E9BAE' }}>語音祝賀達標並自動暫停，等您確認儲存紀錄或繼續跑</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* Simulator Toggle & Route Selector */}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
