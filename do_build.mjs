@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function doBuild() {
-  console.log('Building Vite app from root:', __dirname);
+  console.log('Building production bundle...');
   await build({
     root: __dirname,
     base: '/run-tracker/',
