@@ -55,7 +55,18 @@ export function RunProvider({ children }) {
     return { type: 'free', targetValue: 0 };
   });
   const [goalReached, setGoalReached] = useState(false);
-  const [simulatorMode, setSimulatorMode] = useState(() => initialData ? initialData.simulatorMode : true);
+  const [simulatorMode, setSimulatorModeState] = useState(() => {
+    if (initialData) return initialData.simulatorMode;
+    return settings.useSimulator ?? false;
+  });
+
+  const setSimulatorMode = (val) => {
+    setSimulatorModeState(val);
+    updateSettings({
+      ...settings,
+      useSimulator: val
+    });
+  };
 
   // Save current targetGoal as default in user settings
   const saveDefaultGoal = (goalToSave = targetGoal) => {

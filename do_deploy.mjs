@@ -13,6 +13,6 @@ ghpages.publish(path.join(__dirname, 'dist'), {
     console.error('Publish error:', err);
     process.exit(1);
   } else {
-    console.log('✅ Successfully published goal completion settings feature to GitHub Pages!');
+    console.log('✅ Successfully published simulatorMode setting fix to GitHub Pages!');
   }
 });
