@@ -1,0 +1,29 @@
+{
+  "short_name": "RunTracker",
+  "name": "RunTracker 專業跑步追蹤與數據分析",
+  "description": "具備真實 GPS 定位、模擬測試、語音播報與數據分析的專業跑步追蹤 Web App",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pwa-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "pwa-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/run-tracker/",
+  "scope": "/run-tracker/",
+  "background_color": "#0A0E17",
+  "theme_color": "#0A0E17",
+  "display": "standalone",
+  "orientation": "portrait"
+}
