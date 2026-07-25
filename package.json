@@ -1,0 +1,25 @@
+{
+  "name": "run-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Professional Running Tracking App with GPS Simulator, Voice Cues, Target Goals, and Analytics",
+  "homepage": "https://famidoc.github.io/run-tracker/",
+  "scripts": {
+    "dev": "npx -y concurrently \"vite\" \"npx -y cloudflared tunnel --url http://127.0.0.1:3000\"",
+    "dev:local": "vite",
+    "build": "vite build",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "^0.344.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "gh-pages": "^6.1.1",
+    "vite": "^5.1.4"
+  }
+}
