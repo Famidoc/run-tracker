@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { RunProvider } from './context/RunContext';
 import { Header } from './components/Header';
 import { Navbar } from './components/Navbar';
+import { Footer } from './components/Footer';
 import { RunScreen } from './screens/RunScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
@@ -23,6 +24,7 @@ export default function App() {
           {activeTab === 'analytics' && <AnalyticsScreen />}
           {activeTab === 'history' && <HistoryScreen />}
           {activeTab === 'settings' && <SettingsScreen />}
+          <Footer />
         </main>
 
         {/* Bottom Tab Bar */}
