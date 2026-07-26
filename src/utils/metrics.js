@@ -73,25 +73,70 @@ export function formatSpeed(distanceKm, durationSeconds) {
   return speed.toFixed(1);
 }
 
+// Play crisp audio chime before speech to request Web Audio focus & alert user over Bluetooth headphones
+function playSpeechChime() {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    const now = ctx.currentTime;
+
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(880, now); // A5 tone
+    gain1.gain.setValueAtTime(0.3, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.15);
+
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1174.66, now + 0.12); // D6 tone
+    gain2.gain.setValueAtTime(0.3, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.32);
+  } catch (e) {
+    console.warn('Audio chime error:', e);
+  }
+}
+
 // Voice Speech Cue (Web Speech Synthesis)
 export function speakText(text) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
   try {
-    window.speechSynthesis.cancel(); // Cancel active speech
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'zh-TW';
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
+    // Play dual-tone chime first so bluetooth earphones get audio context focus
+    playSpeechChime();
 
-    // Try finding a Chinese voice
-    const voices = window.speechSynthesis.getVoices();
-    const zhVoice = voices.find(v => v.lang.includes('zh') || v.lang.includes('TW'));
-    if (zhVoice) {
-      utterance.voice = zhVoice;
-    }
+    // Small delay to allow chime to play before speech begins
+    setTimeout(() => {
+      window.speechSynthesis.cancel(); // Cancel active speech
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-TW';
+      utterance.rate = 0.95; // Slightly clearer pace for bluetooth audio
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0; // Maximum volume boost
 
-    window.speechSynthesis.speak(utterance);
+      // Try finding a Chinese voice
+      const voices = window.speechSynthesis.getVoices();
+      const zhVoice = voices.find(v => v.lang.includes('zh') || v.lang.includes('TW'));
+      if (zhVoice) {
+        utterance.voice = zhVoice;
+      }
+
+      window.speechSynthesis.speak(utterance);
+    }, 200);
   } catch (e) {
     console.warn('Speech error:', e);
   }

@@ -352,18 +352,15 @@ export function RunProvider({ children }) {
   };
 
   // Unified Location Processing Pipeline (for BOTH simulator & real GPS)
-  const processLocationPoint = (lat, lng, rawSpeedMs = null) => {
+  const processLocationPoint = (lat, lng, rawSpeedMs = null, accuracy = null) => {
     const newPoint = { lat, lng };
     const currentSec = durationSecRef.current;
 
-    // 1. Update Path Points
-    setPathPoints((prevPath) => [...prevPath, newPoint]);
-
-    // 2. Calculate Distance Increment & Speed
     let incDist = 0;
     let computedSpeedKmh = 0;
 
     if (simulatorMode) {
+      setPathPoints((prevPath) => [...prevPath, newPoint]);
       if (lastPointRef.current) {
         incDist = getHaversineDistance(lastPointRef.current.lat, lastPointRef.current.lng, lat, lng);
         if (rawSpeedMs !== null && rawSpeedMs > 0) {
@@ -372,41 +369,69 @@ export function RunProvider({ children }) {
           computedSpeedKmh = incDist * 3600;
         }
       }
+      lastPointRef.current = newPoint;
     } else {
-      // Real GPS Mode
+      // Real GPS Mode Anti-Drift Filtering
+
+      // 1. Accuracy Filter: If GPS accuracy is worse than 45 meters (cell tower mode on screen lock), discard point
+      if (accuracy !== null && typeof accuracy === 'number' && accuracy > 45) {
+        console.warn('Real GPS point discarded due to low accuracy:', accuracy);
+        return;
+      }
+
       if (!lastValidGpsRef.current) {
         lastValidGpsRef.current = { lat, lng, timeSec: currentSec };
+        lastPointRef.current = newPoint;
+        setPathPoints((prevPath) => [...prevPath, newPoint]);
       } else {
         const rawDist = getHaversineDistance(lastValidGpsRef.current.lat, lastValidGpsRef.current.lng, lat, lng);
         const timeDeltaSec = Math.max(1, currentSec - lastValidGpsRef.current.timeSec);
+        const impliedSpeedKmh = (rawDist / timeDeltaSec) * 3600;
 
-        // Filter teleports > 200m in < 5s
-        const isTeleport = rawDist > 0.2 && timeDeltaSec < 5;
+        // 2. Maximum Human Speed Filter: Running speed max ~25 km/h (2'24"/km pace)
+        const isSpeedSpike = impliedSpeedKmh > 25.0;
 
-        // Accumulate if displacement >= 0.0003km (0.3 meters) or time >= 1s
-        if (!isTeleport && (rawDist >= 0.0003 || timeDeltaSec >= 1)) {
+        // 3. Screen Off / Large Time Gap Filter
+        const isLargeTimeGap = timeDeltaSec > 10;
+
+        if (isSpeedSpike) {
+          console.warn(`GPS drift spike discarded! Speed: ${impliedSpeedKmh.toFixed(1)} km/h, distance: ${(rawDist * 1000).toFixed(0)}m in ${timeDeltaSec}s`);
+          return;
+        }
+
+        if (isLargeTimeGap && rawDist > 0.1) {
+          // If screen was off for >10s and GPS moved >100m, reset position anchor without adding wild jump distance
+          console.warn(`Screen wake GPS update after ${timeDeltaSec}s gap. Resetting position anchor.`);
+          lastValidGpsRef.current = { lat, lng, timeSec: currentSec };
+          lastPointRef.current = newPoint;
+          setPathPoints((prevPath) => [...prevPath, newPoint]);
+          return;
+        }
+
+        // Accumulate valid movement (>= 0.3 meters)
+        if (rawDist >= 0.0003 || timeDeltaSec >= 1) {
           if (rawDist >= 0.0003) {
             incDist = rawDist;
           }
-          if (rawSpeedMs !== null && rawSpeedMs > 0) {
+          if (rawSpeedMs !== null && rawSpeedMs > 0 && rawSpeedMs * 3.6 <= 25) {
             computedSpeedKmh = rawSpeedMs * 3.6;
           } else if (incDist > 0 && timeDeltaSec > 0) {
-            computedSpeedKmh = (incDist / timeDeltaSec) * 3600;
+            computedSpeedKmh = impliedSpeedKmh;
           }
           lastValidGpsRef.current = { lat, lng, timeSec: currentSec };
+          lastPointRef.current = newPoint;
+          setPathPoints((prevPath) => [...prevPath, newPoint]);
         }
       }
     }
 
-    lastPointRef.current = newPoint;
-
     // 3. Update Speed State
     if (computedSpeedKmh > 0) {
-      const boundedSpeed = Math.min(35, Math.max(0, computedSpeedKmh));
+      const boundedSpeed = Math.min(25, Math.max(0, computedSpeedKmh));
       setCurrentSpeedKmh(boundedSpeed);
     }
 
-    // 4. Update Distance, Calories, Splits & Goals (TOP-LEVEL STATE UPDATES)
+    // 4. Update Distance, Calories, Splits & Goals
     if (incDist > 0) {
       updateMetricsAndGoal(incDist, computedSpeedKmh, currentSec);
     }
@@ -445,8 +470,8 @@ export function RunProvider({ children }) {
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude, longitude, speed } = pos.coords;
-        processLocationPoint(latitude, longitude, speed);
+        const { latitude, longitude, speed, accuracy } = pos.coords;
+        processLocationPoint(latitude, longitude, speed, accuracy);
       },
       (err) => console.warn('Real Geolocation warning:', err),
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
@@ -454,6 +479,37 @@ export function RunProvider({ children }) {
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isTracking, isPaused, simulatorMode]);
+
+  // Dynamic Pace Comparison (Current Km Pace vs Overall Average Pace)
+  const getPaceComparison = () => {
+    const avgPaceSec = distanceKm > 0.05 && durationSeconds > 0 ? durationSeconds / distanceKm : 0;
+    const avgPaceStr = formatPace(distanceKm, durationSeconds);
+
+    const currentKmNum = Math.floor(distanceKm) + 1;
+    const distInCurrentKm = distanceKm - Math.floor(distanceKm);
+    const timeInCurrentKm = Math.max(0, durationSeconds - kmStartTimeRef.current);
+
+    let currentPaceSec = 0;
+    if (distInCurrentKm >= 0.03 && timeInCurrentKm > 0) {
+      currentPaceSec = timeInCurrentKm / distInCurrentKm;
+    } else if (currentSpeedKmh > 0) {
+      currentPaceSec = 3600 / currentSpeedKmh;
+    } else {
+      currentPaceSec = avgPaceSec;
+    }
+
+    const currentPaceStr = currentPaceSec > 0 ? formatPace(1, currentPaceSec) : "--'--\"";
+    const isFasterOrEqual = avgPaceSec <= 0 || currentPaceSec <= avgPaceSec;
+
+    return {
+      avgPaceStr,
+      avgPaceSec,
+      currentPaceStr,
+      currentPaceSec,
+      currentKmNum,
+      isFasterOrEqual
+    };
+  };
 
   return (
     <RunContext.Provider
@@ -481,7 +537,8 @@ export function RunProvider({ children }) {
         startRun,
         pauseRun,
         resumeRun,
-        stopRun
+        stopRun,
+        getPaceComparison
       }}
     >
       {children}

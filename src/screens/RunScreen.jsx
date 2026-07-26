@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Pause, Square, Flame, Gauge, Clock, Navigation, Target, Award, Sparkles, Star, Check, Plus, Minus } from 'lucide-react';
+import { Play, Pause, Square, Flame, Gauge, Clock, Navigation, Target, Award, Sparkles, Star, Check, Plus, Minus, Zap } from 'lucide-react';
 import { useRunContext } from '../context/RunContext';
 import { formatTime, formatPace, formatSpeed } from '../utils/metrics';
 import { MapViewComponent } from '../components/MapViewComponent';
@@ -22,7 +22,8 @@ export function RunScreen() {
     pauseRun,
     resumeRun,
     stopRun,
-    simulatorMode
+    simulatorMode,
+    getPaceComparison
   } = useRunContext();
 
   const [savedSummary, setSavedSummary] = useState(null);
@@ -35,7 +36,13 @@ export function RunScreen() {
     }
   };
 
-  const paceStr = formatPace(distanceKm, durationSeconds);
+  const paceComp = getPaceComparison ? getPaceComparison() : {
+    avgPaceStr: formatPace(distanceKm, durationSeconds),
+    currentPaceStr: formatPace(distanceKm, durationSeconds),
+    currentKmNum: Math.floor(distanceKm) + 1,
+    isFasterOrEqual: true
+  };
+
   const speedStr = formatSpeed(distanceKm, durationSeconds);
   const timeStr = formatTime(durationSeconds);
 
@@ -313,24 +320,6 @@ export function RunScreen() {
 
       {/* Main Metric Card */}
       <div className={`glass-card ${isTracking ? 'glow-card-green' : ''}`}>
-        
-        {/* Mode Indicator Tag */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
-          <span style={{
-            fontSize: '11px',
-            fontWeight: '700',
-            padding: '3px 12px',
-            borderRadius: '12px',
-            background: simulatorMode ? 'rgba(0, 229, 255, 0.12)' : 'rgba(0, 230, 118, 0.12)',
-            border: `1px solid ${simulatorMode ? 'rgba(0, 229, 255, 0.3)' : 'rgba(0, 230, 118, 0.3)'}`,
-            color: simulatorMode ? '#00E5FF' : '#00E676',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
-            {simulatorMode ? '🎮 GPS 模擬測試模式' : '🛰️ 真實 GPS 衛星定位中'}
-          </span>
-        </div>
 
         {/* Goal Progress Bar */}
         {targetGoal.type !== 'free' && (
@@ -351,26 +340,69 @@ export function RunScreen() {
           <div className="metric-unit">累積里程 (KM)</div>
         </div>
 
-        {/* 2x2 Sub metrics */}
-        <div className="metric-grid-2x2">
-          <div className="sub-metric-card">
-            <div className="sub-metric-title"><Clock size={14} color="#00E5FF" /> 時間</div>
-            <div className="sub-metric-value">{timeStr}</div>
+        {/* Pace Comparison Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '12px',
+          marginTop: '16px',
+          marginBottom: '12px'
+        }}>
+          {/* Current Km Pace */}
+          <div className="sub-metric-card" style={{
+            background: paceComp.isFasterOrEqual ? 'rgba(0, 230, 118, 0.06)' : 'rgba(255, 23, 68, 0.06)',
+            border: `1px solid ${paceComp.isFasterOrEqual ? 'rgba(0, 230, 118, 0.3)' : 'rgba(255, 23, 68, 0.3)'}`
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="sub-metric-title">
+                <Zap size={14} color={paceComp.isFasterOrEqual ? "#00E676" : "#FF1744"} />
+                <span>目前配速</span>
+              </div>
+              <span style={{
+                fontSize: '10px',
+                fontWeight: '700',
+                padding: '2px 6px',
+                borderRadius: '6px',
+                background: paceComp.isFasterOrEqual ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)',
+                color: paceComp.isFasterOrEqual ? '#00E676' : '#FF1744'
+              }}>
+                {paceComp.isFasterOrEqual ? '🟢 快於均速' : '🔴 掉速提醒'}
+              </span>
+            </div>
+            <div className="sub-metric-value" style={{
+              color: paceComp.isFasterOrEqual ? '#00E676' : '#FF1744',
+              fontSize: '26px'
+            }}>
+              {paceComp.currentPaceStr}
+            </div>
+            <div style={{ fontSize: '11px', color: '#8E9BAE', marginTop: '2px' }}>
+              第 {paceComp.currentKmNum} 公里配速
+            </div>
           </div>
 
+          {/* Average Pace */}
           <div className="sub-metric-card">
-            <div className="sub-metric-title"><Gauge size={14} color="#00E676" /> 平均配速</div>
-            <div className="sub-metric-value">{paceStr}</div>
+            <div className="sub-metric-title"><Gauge size={14} color="#00E5FF" /> 平均配速</div>
+            <div className="sub-metric-value" style={{ fontSize: '26px' }}>{paceComp.avgPaceStr}</div>
+            <div style={{ fontSize: '11px', color: '#8E9BAE', marginTop: '2px' }}>全域總平均</div>
+          </div>
+        </div>
+
+        {/* 3 Secondary Sub metrics */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+          <div className="sub-metric-card" style={{ padding: '10px 8px' }}>
+            <div className="sub-metric-title" style={{ fontSize: '11px' }}><Clock size={12} color="#00E5FF" /> 時間</div>
+            <div className="sub-metric-value" style={{ fontSize: '16px' }}>{timeStr}</div>
           </div>
 
-          <div className="sub-metric-card">
-            <div className="sub-metric-title"><Navigation size={14} color="#FFD600" /> 時速</div>
-            <div className="sub-metric-value">{speedStr} <span style={{ fontSize: '12px', color: '#8E9BAE' }}>km/h</span></div>
+          <div className="sub-metric-card" style={{ padding: '10px 8px' }}>
+            <div className="sub-metric-title" style={{ fontSize: '11px' }}><Navigation size={12} color="#FFD600" /> 時速</div>
+            <div className="sub-metric-value" style={{ fontSize: '16px' }}>{speedStr} <span style={{ fontSize: '10px', color: '#8E9BAE' }}>k/h</span></div>
           </div>
 
-          <div className="sub-metric-card">
-            <div className="sub-metric-title"><Flame size={14} color="#FF1744" /> 消耗卡路里</div>
-            <div className="sub-metric-value">{calories} <span style={{ fontSize: '12px', color: '#8E9BAE' }}>kcal</span></div>
+          <div className="sub-metric-card" style={{ padding: '10px 8px' }}>
+            <div className="sub-metric-title" style={{ fontSize: '11px' }}><Flame size={12} color="#FF1744" /> 卡路里</div>
+            <div className="sub-metric-value" style={{ fontSize: '16px' }}>{calories} <span style={{ fontSize: '10px', color: '#8E9BAE' }}>kcal</span></div>
           </div>
         </div>
 
