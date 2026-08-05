@@ -1,4 +1,34 @@
-/* RunTracker Dark Neon Styling */
+/* RunTracker Global & Dark Neon Styling */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Outfit', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #0A0E17;
+  color: #F0F4F8;
+  overflow-x: hidden;
+  user-select: none;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0D131F;
+}
+::-webkit-scrollbar-thumb {
+  background: #1E293B;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00E676;
+}
 
 :root {
   --bg-dark: #0A0E17;

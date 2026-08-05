@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Sun, Moon, Globe } from 'lucide-react';
+import { getHaversineDistance } from '../utils/metrics';
 
 const MAP_TILE_STYLES = {
   voyager: {
@@ -29,9 +30,21 @@ export function MapViewComponent({ pathPoints = [], isTracking = false }) {
   const polylineRef = useRef(null);
   const runnerMarkerRef = useRef(null);
   const startMarkerRef = useRef(null);
+  const kmMarkersRef = useRef([]);
 
   // Map theme style state (Default to Standard OpenStreetMap for high contrast)
   const [mapStyleKey, setMapStyleKey] = useState('osm');
+
+  const clearKmMarkers = () => {
+    if (mapInstanceRef.current && kmMarkersRef.current.length > 0) {
+      kmMarkersRef.current.forEach(m => {
+        try {
+          mapInstanceRef.current.removeLayer(m);
+        } catch (e) {}
+      });
+      kmMarkersRef.current = [];
+    }
+  };
 
   // Initialize Map
   useEffect(() => {
@@ -67,6 +80,7 @@ export function MapViewComponent({ pathPoints = [], isTracking = false }) {
     }
 
     return () => {
+      clearKmMarkers();
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -108,6 +122,9 @@ export function MapViewComponent({ pathPoints = [], isTracking = false }) {
       polylineRef.current.setLatLngs(latLngs);
     }
 
+    // Clear and redraw kilometer milestone markers
+    clearKmMarkers();
+
     if (pathPoints.length > 0) {
       const currentPoint = pathPoints[pathPoints.length - 1];
       const startPoint = pathPoints[0];
@@ -119,6 +136,48 @@ export function MapViewComponent({ pathPoints = [], isTracking = false }) {
           html: `<div style="background:#00C853; color:#FFF; font-weight:800; font-size:11px; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid #FFF; box-shadow:0 2px 8px rgba(0,0,0,0.4);">S</div>`
         });
         startMarkerRef.current = window.L.marker([startPoint.lat, startPoint.lng], { icon: startIcon }).addTo(map);
+      }
+
+      // Calculate and draw kilometer markers (1k, 2k, 3k, etc.)
+      let runningKm = 0;
+      let nextKmTarget = 1;
+      for (let i = 1; i < pathPoints.length; i++) {
+        const p1 = pathPoints[i - 1];
+        const p2 = pathPoints[i];
+        if (p1 && p2 && typeof p1.lat === 'number' && typeof p2.lat === 'number') {
+          const segDist = getHaversineDistance(p1.lat, p1.lng, p2.lat, p2.lng);
+          runningKm += segDist;
+          while (runningKm >= nextKmTarget) {
+            const kmNum = nextKmTarget;
+            const kmIcon = window.L.divIcon({
+              className: 'custom-km-marker',
+              html: `<div style="
+                background: linear-gradient(135deg, #00E676, #00B0FF);
+                color: #0A0E17;
+                font-weight: 900;
+                font-size: 11px;
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: 2px solid #FFFFFF;
+                box-shadow: 0 3px 10px rgba(0,0,0,0.6);
+                font-family: inherit;
+              ">${kmNum}</div>`,
+              iconSize: [22, 22],
+              iconAnchor: [11, 11]
+            });
+
+            const marker = window.L.marker([p2.lat, p2.lng], { icon: kmIcon })
+              .bindTooltip(`第 ${kmNum} 公里播報點`, { permanent: false, direction: 'top', offset: [0, -10] })
+              .addTo(map);
+
+            kmMarkersRef.current.push(marker);
+            nextKmTarget += 1;
+          }
+        }
       }
 
       // Runner Pulse Marker

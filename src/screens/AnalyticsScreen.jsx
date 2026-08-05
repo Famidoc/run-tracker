@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { BarChart2, Calendar, TrendingUp, Flame, Zap, Award } from 'lucide-react';
+import { BarChart2, Calendar, TrendingUp, Flame, Zap, Award, Medal, Trophy, Star, ShieldCheck } from 'lucide-react';
 import { useRunContext } from '../context/RunContext';
-import { formatTime } from '../utils/metrics';
+import { formatTime, calculatePersonalRecords } from '../utils/metrics';
 
 export function AnalyticsScreen() {
   const { history, profile } = useRunContext();
@@ -16,10 +16,8 @@ export function AnalyticsScreen() {
   // Generate 7 days bar chart data
   const chartDays = getPast7DaysData(history);
 
-  // Personal Best (PB)
-  const longestRun = history.length > 0
-    ? [...history].sort((a, b) => b.distanceKm - a.distanceKm)[0]
-    : null;
+  // Personal Records All-Time
+  const prs = calculatePersonalRecords(history);
 
   return (
     <div style={{ padding: '16px 20px', paddingBottom: '30px' }}>
@@ -27,8 +25,8 @@ export function AnalyticsScreen() {
       {/* Page Title */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: '800' }}>數據統計分析</h1>
-          <p style={{ fontSize: '12px', color: '#8E9BAE' }}>累積追蹤與歷史進步趨勢</p>
+          <h1 style={{ fontSize: '22px', fontWeight: '800' }}>數據統計與榮譽榜</h1>
+          <p style={{ fontSize: '12px', color: '#8E9BAE' }}>累積追蹤與歷史最佳紀錄 PRs</p>
         </div>
 
         {/* Week/Month Switch */}
@@ -63,6 +61,77 @@ export function AnalyticsScreen() {
           >
             本月
           </button>
+        </div>
+      </div>
+
+      {/* Personal Records PR Honor Wall */}
+      <div className="glass-card glow-card-green" style={{ background: 'linear-gradient(135deg, rgba(255, 214, 0, 0.1), rgba(0, 230, 118, 0.08))', border: '1px solid rgba(255, 214, 0, 0.4)', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Trophy size={20} color="#FFD600" />
+            <span style={{ fontWeight: '800', fontSize: '15px', color: '#FFD600' }}>🏆 個人生涯最佳紀錄 (PRs)</span>
+          </div>
+          <span style={{ fontSize: '11px', color: '#00E676', fontWeight: '700', background: 'rgba(0, 230, 118, 0.15)', padding: '2px 8px', borderRadius: '10px' }}>
+            自動計算
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          {/* PR 1: Best 1K */}
+          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '10px 12px', borderRadius: '12px', border: '1px solid rgba(255, 214, 0, 0.2)' }}>
+            <div style={{ fontSize: '11px', color: '#8E9BAE', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Medal size={13} color="#FFD600" />
+              <span>最快 1 公里</span>
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: '800', color: '#FFF', marginTop: '2px' }}>
+              {prs.best1k ? prs.best1k.pace : "--'--\""}
+            </div>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
+              {prs.best1k ? new Date(prs.best1k.date).toLocaleDateString() : '尚無紀錄'}
+            </div>
+          </div>
+
+          {/* PR 2: Longest Distance */}
+          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '10px 12px', borderRadius: '12px', border: '1px solid rgba(0, 230, 118, 0.2)' }}>
+            <div style={{ fontSize: '11px', color: '#8E9BAE', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Star size={13} color="#00E676" />
+              <span>單次最長距離</span>
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: '800', color: '#00E676', marginTop: '2px' }}>
+              {prs.longestDist ? `${prs.longestDist.distanceKm} km` : '0.0 km'}
+            </div>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
+              {prs.longestDist ? new Date(prs.longestDist.date).toLocaleDateString() : '尚無紀錄'}
+            </div>
+          </div>
+
+          {/* PR 3: Fastest 5K */}
+          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '10px 12px', borderRadius: '12px', border: '1px solid rgba(0, 229, 255, 0.2)' }}>
+            <div style={{ fontSize: '11px', color: '#8E9BAE', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Award size={13} color="#00E5FF" />
+              <span>最快 5 公里</span>
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: '800', color: '#00E5FF', marginTop: '2px' }}>
+              {prs.best5k ? formatTime(prs.best5k.durationSeconds) : '未達成'}
+            </div>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
+              {prs.best5k ? `均速 ${prs.best5k.avgPace}` : '跑滿 5km 自動紀錄'}
+            </div>
+          </div>
+
+          {/* PR 4: Fastest 10K */}
+          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '10px 12px', borderRadius: '12px', border: '1px solid rgba(255, 23, 68, 0.2)' }}>
+            <div style={{ fontSize: '11px', color: '#8E9BAE', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <ShieldCheck size={13} color="#FF1744" />
+              <span>最快 10 公里</span>
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: '800', color: '#FF1744', marginTop: '2px' }}>
+              {prs.best10k ? formatTime(prs.best10k.durationSeconds) : '未達成'}
+            </div>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
+              {prs.best10k ? `均速 ${prs.best10k.avgPace}` : '跑滿 10km 自動紀錄'}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -138,7 +207,7 @@ export function AnalyticsScreen() {
       </div>
 
       {/* Personal Best (PB) Card */}
-      {longestRun && (
+      {prs.longestDist && (
         <div className="glass-card" style={{ background: 'linear-gradient(135deg, #121824, #1E293B)', border: '1px solid rgba(255,214,0,0.3)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
             <Award size={22} color="#FFD600" />
@@ -146,10 +215,10 @@ export function AnalyticsScreen() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <div style={{ fontSize: '32px', fontWeight: '800', color: '#FFF' }}>
-              {longestRun.distanceKm} <span style={{ fontSize: '14px', color: '#8E9BAE' }}>KM</span>
+              {prs.longestDist.distanceKm} <span style={{ fontSize: '14px', color: '#8E9BAE' }}>KM</span>
             </div>
             <div style={{ fontSize: '12px', color: '#8E9BAE' }}>
-              {longestRun.title} • {new Date(longestRun.date).toLocaleDateString()}
+              {new Date(prs.longestDist.date).toLocaleDateString()}
             </div>
           </div>
         </div>
@@ -159,20 +228,30 @@ export function AnalyticsScreen() {
   );
 }
 
-// Utility to aggregate distance by past 7 days
+// Utility to aggregate distance by past 7 days using Local Date matching
 function getPast7DaysData(history) {
   const result = [];
   const daysMap = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
   const now = new Date();
 
   for (let i = 6; i >= 0; i--) {
-    const targetDate = new Date(now.getTime() - i * 86400000);
-    const dateStr = targetDate.toISOString().split('T')[0];
-    const dayLabel = daysMap[targetDate.getDay()];
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const dateNum = String(d.getDate()).padStart(2, '0');
+    const localDateStr = `${year}-${month}-${dateNum}`;
+    const dayLabel = daysMap[d.getDay()];
 
     const dayDistance = history
-      .filter(item => item.date.startsWith(dateStr))
-      .reduce((sum, item) => sum + item.distanceKm, 0);
+      .filter((item) => {
+        if (!item || !item.date) return false;
+        const itemD = new Date(item.date);
+        const iy = itemD.getFullYear();
+        const im = String(itemD.getMonth() + 1).padStart(2, '0');
+        const id = String(itemD.getDate()).padStart(2, '0');
+        return `${iy}-${im}-${id}` === localDateStr;
+      })
+      .reduce((sum, item) => sum + (item.distanceKm || 0), 0);
 
     result.push({ dayLabel, distance: dayDistance });
   }

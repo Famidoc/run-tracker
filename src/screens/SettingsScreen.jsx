@@ -3,6 +3,7 @@ import { User, Volume2, Radio, Download, Upload, Trash2, Check, ShieldCheck, Tar
 import { useRunContext } from '../context/RunContext';
 import { StorageService } from '../utils/storage';
 import { PRESET_ROUTES } from '../utils/gpsSimulator';
+import { speakText } from '../utils/metrics';
 
 export function SettingsScreen() {
   const { profile, updateProfile, settings, updateSettings, simulatorMode, setSimulatorMode } = useRunContext();
@@ -238,6 +239,73 @@ export function SettingsScreen() {
               onChange={(e) => updateSettings({ ...settings, voiceCues: e.target.checked })}
               style={{ width: '20px', height: '20px', accentColor: '#00E676', cursor: 'pointer' }}
             />
+          </div>
+
+          {/* Goal Reached Behavior Selector */}
+          {/* Smart Auto-Pause Toggle */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '14px', color: '#FFF' }}>智慧自動暫停 (Auto-Pause)</div>
+                <div style={{ fontSize: '11px', color: '#8E9BAE' }}>等紅燈或停下時自動暫停，移動時恢復</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.autoPause ?? false}
+                onChange={(e) => updateSettings({ ...settings, autoPause: e.target.checked })}
+                style={{ width: '20px', height: '20px', accentColor: '#00E676', cursor: 'pointer' }}
+              />
+            </div>
+          </div>
+
+          {/* Pace Zone Alert Section */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '14px', color: '#FFF' }}>雙向配速區間語音警報</div>
+                <div style={{ fontSize: '11px', color: '#8E9BAE' }}>配速高於上限或低於下限時自動語音提醒</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.paceZoneEnabled ?? false}
+                onChange={(e) => updateSettings({ ...settings, paceZoneEnabled: e.target.checked })}
+                style={{ width: '20px', height: '20px', accentColor: '#00E676', cursor: 'pointer' }}
+              />
+            </div>
+
+            {settings.paceZoneEnabled && (
+              <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#00E676', fontWeight: '700', display: 'block', marginBottom: '4px' }}>
+                    🟢 配速上限 (過快警報門檻)
+                  </label>
+                  <select
+                    value={settings.targetPaceMin || '05:00'}
+                    onChange={(e) => updateSettings({ ...settings, targetPaceMin: e.target.value })}
+                    style={{ width: '100%', background: '#0D131F', color: '#FFF', border: '1px solid rgba(255,255,255,0.1)', padding: '8px', borderRadius: '8px', fontSize: '14px', fontWeight: '700' }}
+                  >
+                    {['03:30', '04:00', '04:30', '05:00', '05:30', '06:00'].map((p) => (
+                      <option key={p} value={p}>{p} /km ({p.replace(':', '分')}秒)</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', color: '#FF1744', fontWeight: '700', display: 'block', marginBottom: '4px' }}>
+                    🔴 配速下限 (過慢掉速警報門檻)
+                  </label>
+                  <select
+                    value={settings.targetPaceMax || '06:30'}
+                    onChange={(e) => updateSettings({ ...settings, targetPaceMax: e.target.value })}
+                    style={{ width: '100%', background: '#0D131F', color: '#FFF', border: '1px solid rgba(255,255,255,0.1)', padding: '8px', borderRadius: '8px', fontSize: '14px', fontWeight: '700' }}
+                  >
+                    {['05:30', '06:00', '06:30', '07:00', '07:30', '08:00'].map((p) => (
+                      <option key={p} value={p}>{p} /km ({p.replace(':', '分')}秒)</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Goal Reached Behavior Selector */}

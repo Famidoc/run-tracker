@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Play, Pause, Square, Flame, Gauge, Clock, Navigation, Target, Award, Sparkles, Star, Check, Plus, Minus, Zap } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Play, Pause, Square, Flame, Gauge, Clock, Navigation, Target, Award, Sparkles, Star, Check, Plus, Minus, Zap, Lock, Unlock, Maximize2, Minimize2, ShieldAlert, Trash2 } from 'lucide-react';
 import { useRunContext } from '../context/RunContext';
 import { formatTime, formatPace, formatSpeed } from '../utils/metrics';
 import { MapViewComponent } from '../components/MapViewComponent';
@@ -22,17 +22,47 @@ export function RunScreen() {
     pauseRun,
     resumeRun,
     stopRun,
+    deleteRunRecord,
     simulatorMode,
-    getPaceComparison
+    getPaceComparison,
+    isTouchLocked,
+    setIsTouchLocked,
+    isOutdoorView,
+    setIsOutdoorView
   } = useRunContext();
 
   const [savedSummary, setSavedSummary] = useState(null);
   const [defaultSavedSuccess, setDefaultSavedSuccess] = useState(false);
 
+  // Touch Guard hold timer state
+  const [holdProgress, setHoldProgress] = useState(0); // 0 to 100
+  const holdIntervalRef = useRef(null);
+
+  const handleTouchHoldStart = () => {
+    let current = 0;
+    if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
+    holdIntervalRef.current = setInterval(() => {
+      current += 5; // 20 steps over 2 seconds (100ms each)
+      setHoldProgress(current);
+      if (current >= 100) {
+        clearInterval(holdIntervalRef.current);
+        setIsTouchLocked(false);
+        setHoldProgress(0);
+      }
+    }, 100);
+  };
+
+  const handleTouchHoldEnd = () => {
+    if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
+    setHoldProgress(0);
+  };
+
   const handleStop = () => {
     const record = stopRun();
     if (record) {
       setSavedSummary(record);
+      setIsOutdoorView(false);
+      setIsTouchLocked(false);
     }
   };
 
@@ -55,7 +85,188 @@ export function RunScreen() {
   }
 
   return (
-    <div style={{ padding: '16px 20px', paddingBottom: '30px' }}>
+    <div style={{ padding: '16px 20px', paddingBottom: '30px', position: 'relative' }}>
+
+      {/* FULLSCREEN: Touch Guard Overlay */}
+      {isTouchLocked && isTracking && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(5, 8, 15, 0.96)',
+          backdropFilter: 'blur(20px)',
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '40px 24px'
+        }}>
+          <div style={{ textAlign: 'center', marginTop: '20px' }}>
+            <div style={{
+              width: '64px', height: '64px', borderRadius: '50%',
+              background: 'rgba(255, 214, 0, 0.15)', border: '2px solid #FFD600',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px'
+            }}>
+              <ShieldAlert size={36} color="#FFD600" />
+            </div>
+            <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#FFF', marginBottom: '6px' }}>觸控防誤觸鎖定中</h2>
+            <p style={{ fontSize: '13px', color: '#8E9BAE' }}>防止手持手掌或汗水誤觸控制</p>
+          </div>
+
+          <div style={{ textAlignment: 'center', textAlign: 'center' }}>
+            <div style={{ fontSize: '56px', fontWeight: '900', color: '#00E676', lineHeight: 1 }}>{distanceKm.toFixed(2)}</div>
+            <div style={{ fontSize: '14px', color: '#8E9BAE', marginTop: '4px' }}>累積公里 (KM) • {timeStr}</div>
+          </div>
+
+          <div style={{ width: '100%', maxWidth: '320px', textAlign: 'center', marginBottom: '20px' }}>
+            {/* Progress bar */}
+            <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', marginBottom: '12px', overflow: 'hidden' }}>
+              <div style={{ width: `${holdProgress}%`, height: '100%', background: '#FFD600', transition: 'width 0.1s linear' }} />
+            </div>
+
+            <button
+              onMouseDown={handleTouchHoldStart}
+              onMouseUp={handleTouchHoldEnd}
+              onTouchStart={handleTouchHoldStart}
+              onTouchEnd={handleTouchHoldEnd}
+              style={{
+                width: '100%',
+                padding: '16px',
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, rgba(255,214,0,0.2), rgba(255,109,0,0.2))',
+                border: '1.5px solid #FFD600',
+                color: '#FFD600',
+                fontSize: '16px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                userSelect: 'none',
+                WebkitUserSelect: 'none'
+              }}
+            >
+              <Lock size={20} />
+              <span>按住 2 秒解鎖鎖定</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN: Outdoor High-Contrast 4-Data Dashboard View */}
+      {isOutdoorView && isTracking && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: '#04070D',
+          zIndex: 8888,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '20px 20px 30px',
+          justifyContent: 'space-between'
+        }}>
+          {/* Header Controls */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#00E676', fontWeight: '800', fontSize: '15px' }}>
+              <Zap size={18} />
+              <span>戶外強光大字儀表板</span>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setIsTouchLocked(true)}
+                style={{ background: 'rgba(255,214,0,0.15)', border: '1px solid #FFD600', color: '#FFD600', padding: '8px 12px', borderRadius: '10px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+              >
+                <Lock size={16} /> 鎖定
+              </button>
+              <button
+                onClick={() => setIsOutdoorView(false)}
+                style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#FFF', padding: '8px 12px', borderRadius: '10px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+              >
+                <Minimize2 size={16} /> 退出大字
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Large Metrics Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', margin: '20px 0' }}>
+            
+            {/* Metric 1: Current Km Pace */}
+            <div style={{ background: '#0D1424', border: `2px solid ${paceComp.isFasterOrEqual ? '#00E676' : '#FF1744'}`, borderRadius: '20px', padding: '20px 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px', textTransform: 'uppercase' }}>
+                當前第 {paceComp.currentKmNum} 公里配速
+              </div>
+              <div style={{ fontSize: '38px', fontWeight: '900', color: paceComp.isFasterOrEqual ? '#00E676' : '#FF1744', lineHeight: 1.1 }}>
+                {paceComp.currentPaceStr}
+              </div>
+              <div style={{ fontSize: '11px', color: paceComp.isFasterOrEqual ? '#00E676' : '#FF1744', marginTop: '6px', fontWeight: '700' }}>
+                {paceComp.isFasterOrEqual ? '🟢 快於均速' : '🔴 掉速提醒'}
+              </div>
+            </div>
+
+            {/* Metric 2: Overall Average Pace */}
+            <div style={{ background: '#0D1424', border: '2px solid #00E5FF', borderRadius: '20px', padding: '20px 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px', textTransform: 'uppercase' }}>
+                全整趟總平均配速
+              </div>
+              <div style={{ fontSize: '38px', fontWeight: '900', color: '#00E5FF', lineHeight: 1.1 }}>
+                {paceComp.avgPaceStr}
+              </div>
+              <div style={{ fontSize: '11px', color: '#8E9BAE', marginTop: '6px' }}>
+                Overall Avg Pace
+              </div>
+            </div>
+
+            {/* Metric 3: Distance */}
+            <div style={{ background: '#0D1424', border: '2px solid #FFFFFF', borderRadius: '20px', padding: '20px 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px', textTransform: 'uppercase' }}>
+                累積里程 (KM)
+              </div>
+              <div style={{ fontSize: '42px', fontWeight: '900', color: '#FFFFFF', lineHeight: 1.1 }}>
+                {distanceKm.toFixed(2)}
+              </div>
+              <div style={{ fontSize: '11px', color: '#8E9BAE', marginTop: '6px' }}>
+                Kilometers
+              </div>
+            </div>
+
+            {/* Metric 4: Duration Time */}
+            <div style={{ background: '#0D1424', border: '2px solid #FFD600', borderRadius: '20px', padding: '20px 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px', textTransform: 'uppercase' }}>
+                跑步總耗時
+              </div>
+              <div style={{ fontSize: '38px', fontWeight: '900', color: '#FFD600', lineHeight: 1.1 }}>
+                {timeStr}
+              </div>
+              <div style={{ fontSize: '11px', color: '#8E9BAE', marginTop: '6px' }}>
+                Duration
+              </div>
+            </div>
+
+          </div>
+
+          {/* Bottom Action Controls */}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            {isPaused ? (
+              <button className="btn-primary" style={{ flex: 1, padding: '16px', fontSize: '18px' }} onClick={resumeRun}>
+                <Play fill="#0A0E17" size={24} />
+                <span>繼續</span>
+              </button>
+            ) : (
+              <button className="btn-secondary" style={{ flex: 1, padding: '16px', fontSize: '18px' }} onClick={pauseRun}>
+                <Pause size={24} color="#FFD600" />
+                <span>暫停</span>
+              </button>
+            )}
+
+            <button className="btn-danger" style={{ flex: 1, padding: '16px', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={handleStop}>
+              <Square size={22} fill="#FF1744" />
+              <span>結束跑步</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Goal Celebration Popup */}
       {goalReached && isTracking && (
@@ -101,39 +312,40 @@ export function RunScreen() {
             )}
           </div>
 
-          {/* 3 Main Modes */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
             {[
-              { type: 'free', label: '1. 自由跑' },
-              { type: 'distance', label: '2. 公里數' },
-              { type: 'time', label: '3. 時間' }
-            ].map((tab) => {
-              const isSelected = targetGoal.type === tab.type;
+              { type: 'free', label: '自主跑', icon: Sparkles },
+              { type: 'distance', label: '距離目標', icon: Navigation },
+              { type: 'time', label: '時間目標', icon: Clock }
+            ].map((g) => {
+              const Icon = g.icon;
+              const active = targetGoal.type === g.type;
               return (
                 <button
-                  key={tab.type}
+                  key={g.type}
                   onClick={() => {
-                    if (tab.type === 'free') {
-                      setTargetGoal({ type: 'free', targetValue: 0 });
-                    } else if (tab.type === 'distance') {
-                      setTargetGoal({ type: 'distance', targetValue: settings.defaultGoal?.distanceValue || 5.0 });
-                    } else if (tab.type === 'time') {
-                      setTargetGoal({ type: 'time', targetValue: settings.defaultGoal?.timeValue || 30 });
-                    }
+                    if (g.type === 'free') setTargetGoal({ type: 'free', targetValue: 0 });
+                    else if (g.type === 'distance') setTargetGoal({ type: 'distance', targetValue: settings?.defaultGoal?.distanceValue || 5.0 });
+                    else if (g.type === 'time') setTargetGoal({ type: 'time', targetValue: settings?.defaultGoal?.timeValue || 30 });
                   }}
                   style={{
-                    background: isSelected ? 'linear-gradient(135deg, rgba(0, 230, 118, 0.2), rgba(0, 229, 255, 0.15))' : 'rgba(255, 255, 255, 0.03)',
-                    border: `1px solid ${isSelected ? '#00E676' : 'rgba(255, 255, 255, 0.08)'}`,
-                    color: isSelected ? '#00E676' : '#8E9BAE',
-                    borderRadius: '12px',
+                    flex: 1,
                     padding: '10px 4px',
-                    fontSize: '13px',
+                    borderRadius: '12px',
+                    border: active ? '1.5px solid #00E676' : '1px solid rgba(255,255,255,0.08)',
+                    background: active ? 'rgba(0, 230, 118, 0.15)' : 'rgba(255,255,255,0.03)',
+                    color: active ? '#00E676' : 'var(--text-muted)',
                     fontWeight: '700',
+                    fontSize: '12px',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease'
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px'
                   }}
                 >
-                  {tab.label}
+                  <Icon size={18} />
+                  <span>{g.label}</span>
                 </button>
               );
             })}
@@ -321,6 +533,32 @@ export function RunScreen() {
       {/* Main Metric Card */}
       <div className={`glass-card ${isTracking ? 'glow-card-green' : ''}`}>
 
+        {/* Quick Toolbar for Tracking Mode (Touch Lock & Outdoor Big Display Buttons) */}
+        {isTracking && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: '12px', color: '#00E676', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00E676', boxShadow: '0 0 8px #00E676' }} />
+              <span style={{ color: '#00E676' }}>跑步追蹤進行中</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setIsTouchLocked(true)}
+                style={{ background: 'rgba(255, 214, 0, 0.15)', border: '1px solid #FFD600', color: '#FFD600', borderRadius: '12px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+              >
+                <Lock size={13} />
+                <span>防誤觸鎖</span>
+              </button>
+              <button
+                onClick={() => setIsOutdoorView(true)}
+                style={{ background: 'rgba(0, 229, 255, 0.15)', border: '1px solid #00E5FF', color: '#00E5FF', borderRadius: '12px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+              >
+                <Maximize2 size={13} />
+                <span>大字模式</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Goal Progress Bar */}
         {targetGoal.type !== 'free' && (
           <div style={{ marginBottom: '16px' }}>
@@ -413,7 +651,7 @@ export function RunScreen() {
         {!isTracking ? (
           <button className="btn-primary" onClick={startRun}>
             <Play fill="#0A0E17" size={24} />
-            <span>開始跑步</span>
+            <span>開始跑步紀錄</span>
           </button>
         ) : (
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -437,7 +675,7 @@ export function RunScreen() {
         )}
       </div>
 
-      {/* Run Summary Modal after Stop */}
+      {/* Summary Modal after Stop */}
       {savedSummary && (
         <div style={{
           position: 'fixed',
@@ -473,9 +711,55 @@ export function RunScreen() {
               </div>
             </div>
 
-            <button className="btn-primary" onClick={() => setSavedSummary(null)}>
-              確認儲存
-            </button>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                style={{
+                  flex: 1,
+                  padding: '14px',
+                  borderRadius: '16px',
+                  background: 'rgba(255, 23, 68, 0.12)',
+                  border: '1.5px solid rgba(255, 23, 68, 0.4)',
+                  color: '#FF1744',
+                  fontWeight: '700',
+                  fontSize: '15px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onClick={() => {
+                  if (savedSummary?.id && deleteRunRecord) {
+                    deleteRunRecord(savedSummary.id);
+                  }
+                  setSavedSummary(null);
+                }}
+              >
+                <Trash2 size={18} />
+                <span>不用儲存</span>
+              </button>
+
+              <button
+                className="btn-primary"
+                style={{
+                  flex: 1.5,
+                  padding: '14px',
+                  borderRadius: '16px',
+                  fontSize: '15px',
+                  fontWeight: '800',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  margin: 0
+                }}
+                onClick={() => setSavedSummary(null)}
+              >
+                <Check size={18} />
+                <span>確認儲存</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

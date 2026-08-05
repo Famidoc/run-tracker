@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, Flame, ChevronRight, Trash2, MapPin, Layers } from 'lucide-react';
+import { Calendar, Clock, Flame, ChevronRight, Trash2, MapPin, Layers, Download } from 'lucide-react';
 import { useRunContext } from '../context/RunContext';
-import { formatTime, ensureCompleteKmSplits, calculateTotalPathDistance, formatPace, formatSpeed, calculateCaloriesBurned } from '../utils/metrics';
+import { formatTime, ensureCompleteKmSplits, calculateTotalPathDistance, formatPace, formatSpeed, calculateCaloriesBurned, generateGPX, downloadFile } from '../utils/metrics';
 import { MapViewComponent } from '../components/MapViewComponent';
 
 export function HistoryScreen() {
@@ -66,9 +66,36 @@ export function HistoryScreen() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontWeight: '800', fontSize: '16px', color: '#FFF' }}>{record.title}</span>
-                  <span style={{ fontSize: '12px', color: '#8E9BAE', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Calendar size={12} /> {new Date(record.date).toLocaleDateString()}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#8E9BAE', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Calendar size={12} /> {new Date(record.date).toLocaleDateString()}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`確定要刪除這筆 ${dist} KM 的跑步紀錄嗎？`)) {
+                          deleteRunRecord(record.id);
+                        }
+                      }}
+                      style={{
+                        background: 'rgba(255, 23, 68, 0.12)',
+                        border: '1px solid rgba(255, 23, 68, 0.3)',
+                        color: '#FF1744',
+                        borderRadius: '8px',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="刪除此筆紀錄"
+                    >
+                      <Trash2 size={12} />
+                      <span>刪除</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
@@ -156,13 +183,13 @@ export function HistoryScreen() {
                   <Layers size={14} color="#00E5FF" />
                   <span>每公里分段配速 ({modalSplits.length} 公里)</span>
                 </div>
-                <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', maxHeight: '200px', overflowY: 'auto' }}>
+                <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', maxHeight: '160px', overflowY: 'auto' }}>
                   {modalSplits.map((split) => (
                     <div
                       key={split.km}
                       style={{
                         display: 'flex',
-                        justify: 'space-between',
+                        justifyContent: 'space-between',
                         padding: '10px 14px',
                         borderBottom: '1px solid rgba(255,255,255,0.04)',
                         fontSize: '13px'
@@ -177,22 +204,34 @@ export function HistoryScreen() {
             )}
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="btn-secondary"
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 8px', border: '1px solid #00E5FF', color: '#00E5FF', background: 'rgba(0, 229, 255, 0.1)', fontSize: '13px', borderRadius: '12px', cursor: 'pointer' }}
+                onClick={() => {
+                  const gpxContent = generateGPX(selectedRun);
+                  downloadFile(`run_${selectedRun.id}.gpx`, gpxContent, 'application/gpx+xml');
+                }}
+              >
+                <Download size={15} />
+                <span>匯出 GPX 軌跡</span>
+              </button>
+
               <button
                 className="btn-danger"
-                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '12px' }}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px 8px', borderRadius: '12px', fontSize: '13px', cursor: 'pointer' }}
                 onClick={() => {
                   deleteRunRecord(selectedRun.id);
                   setSelectedRun(null);
                 }}
               >
-                <Trash2 size={16} />
+                <Trash2 size={15} />
                 <span>刪除紀錄</span>
               </button>
 
               <button
                 className="btn-secondary"
-                style={{ flex: 1, padding: '12px' }}
+                style={{ flex: 1, padding: '10px 8px', borderRadius: '12px', fontSize: '13px', cursor: 'pointer' }}
                 onClick={() => setSelectedRun(null)}
               >
                 關閉

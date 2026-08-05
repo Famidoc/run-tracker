@@ -7,7 +7,11 @@ import {
   formatSpeed,
   speakText,
   ensureCompleteKmSplits,
-  calculateTotalPathDistance
+  calculateTotalPathDistance,
+  paceToSeconds,
+  generateGPX,
+  downloadFile,
+  calculatePersonalRecords
 } from '../utils/metrics';
 import { GPSSimulator } from '../utils/gpsSimulator';
 
@@ -60,6 +64,16 @@ export function RunProvider({ children }) {
     return settings.useSimulator ?? false;
   });
 
+  // UI Interactive States (Touch Guard & Outdoor High-Contrast 4-Data Mode)
+  const [isTouchLocked, setIsTouchLocked] = useState(false);
+  const [isOutdoorView, setIsOutdoorView] = useState(false);
+
+  // Auto-Pause & Pace Zone Warning Refs
+  const lowSpeedSecondsRef = useRef(0);
+  const highSpeedSecondsRef = useRef(0);
+  const isAutoPausedBySystemRef = useRef(false);
+  const lastPaceAlertTimeRef = useRef(0);
+
   const setSimulatorMode = (val) => {
     setSimulatorModeState(val);
     updateSettings({
@@ -98,10 +112,12 @@ export function RunProvider({ children }) {
   const gpsWatcherRef = useRef(null);
   const simulatorInstanceRef = useRef(null);
 
-  const lastAnnouncedKmRef = useRef(0);
+  const lastAnnouncedKmRef = useRef(initialData ? (initialData.lastAnnouncedKm || 0) : 0);
   const lastPointRef = useRef(null);
   const lastValidGpsRef = useRef(null); // { lat, lng, timeSec }
-  const kmStartTimeRef = useRef(0);
+  const kmStartTimeRef = useRef(initialData ? (initialData.kmStartTime || 0) : 0);
+  const gpsWindowRef = useRef([]); // Rolling 12-second window [{ lat, lng, timeSec, distKm }]
+  const rollingPaceRef = useRef(0); // Instant rolling pace in seconds/km
 
   // Profile / Settings handlers
   const updateProfile = (newProfile) => {
@@ -129,6 +145,8 @@ export function RunProvider({ children }) {
           kmSplits,
           targetGoal,
           simulatorMode,
+          lastAnnouncedKm: lastAnnouncedKmRef.current,
+          kmStartTime: kmStartTimeRef.current,
           timestamp: Date.now()
         }));
       } catch (e) {}
@@ -152,10 +170,17 @@ export function RunProvider({ children }) {
     lastAnnouncedKmRef.current = 0;
     lastPointRef.current = null;
     lastValidGpsRef.current = null;
+    gpsWindowRef.current = [];
+    rollingPaceRef.current = 0;
     kmStartTimeRef.current = 0;
 
+    lowSpeedSecondsRef.current = 0;
+    highSpeedSecondsRef.current = 0;
+    isAutoPausedBySystemRef.current = false;
+    lastPaceAlertTimeRef.current = 0;
+
     if (settings.voiceCues) {
-      speakText('跑步開始，加油！');
+      speakText('跑步開始，加油！', settings.voiceVolume ?? 1.0);
     }
 
     // Initialize Simulator or Real Geolocation
@@ -167,16 +192,28 @@ export function RunProvider({ children }) {
   // Pause
   const pauseRun = () => {
     setIsPaused(true);
+    lowSpeedSecondsRef.current = 0;
+    highSpeedSecondsRef.current = 0;
     if (settings.voiceCues) {
-      speakText('已暫停跑步');
+      speakText('已暫停跑步', settings.voiceVolume ?? 1.0);
     }
   };
 
   // Resume
   const resumeRun = () => {
     setIsPaused(false);
+    isAutoPausedBySystemRef.current = false;
+    lowSpeedSecondsRef.current = 0;
+    highSpeedSecondsRef.current = 0;
+
+    // CRITICAL RESET: Reset lastValidGpsRef & rolling window so post-resume location doesn't calculate jump against pre-pause location
+    lastValidGpsRef.current = null;
+    lastPointRef.current = null;
+    gpsWindowRef.current = [];
+    rollingPaceRef.current = 0;
+
     if (settings.voiceCues) {
-      speakText('繼續跑步');
+      speakText('繼續跑步', settings.voiceVolume ?? 1.0);
     }
   };
 
@@ -212,7 +249,7 @@ export function RunProvider({ children }) {
     setHistory(updatedHistory);
 
     if (settings.voiceCues) {
-      speakText(`跑步完成！本次完成 ${finalDist} 公里，耗時 ${Math.floor(durationSeconds / 60)} 分鐘，消耗 ${finalCalories} 卡路里。`);
+      speakText(`跑步完成！本次完成 ${finalDist} 公里，耗時 ${Math.floor(durationSeconds / 60)} 分鐘，消耗 ${finalCalories} 卡路里。`, settings.voiceVolume ?? 1.0);
     }
 
     resetRunState();
@@ -230,6 +267,11 @@ export function RunProvider({ children }) {
     setKmSplits([]);
     lastPointRef.current = null;
     lastValidGpsRef.current = null;
+    gpsWindowRef.current = [];
+    rollingPaceRef.current = 0;
+    lowSpeedSecondsRef.current = 0;
+    highSpeedSecondsRef.current = 0;
+    isAutoPausedBySystemRef.current = false;
     try {
       localStorage.removeItem(ACTIVE_SESSION_KEY);
     } catch (e) {}
@@ -279,6 +321,28 @@ export function RunProvider({ children }) {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [isTracking, isPaused]);
 
+  // MediaSession API to prevent native phone music players from taking focus during workouts
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'mediaSession' in navigator) {
+      try {
+        if (isTracking && !isPaused) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: 'RunTracker 跑步監控中',
+            artist: '體能監控與GPS發音提醒',
+            album: 'RunTracker App'
+          });
+          navigator.mediaSession.playbackState = 'playing';
+        } else if (!isTracking) {
+          navigator.mediaSession.playbackState = 'none';
+        } else if (isPaused) {
+          navigator.mediaSession.playbackState = 'paused';
+        }
+      } catch (e) {
+        console.warn('MediaSession error:', e);
+      }
+    }
+  }, [isTracking, isPaused]);
+
   // Ref to track current duration for real GPS callbacks
   const durationSecRef = useRef(0);
   useEffect(() => {
@@ -288,13 +352,13 @@ export function RunProvider({ children }) {
   const triggerGoalReached = (textMsg) => {
     setGoalReached(true);
     if (settings.voiceCues) {
-      speakText(textMsg);
+      speakText(textMsg, settings.voiceVolume ?? 1.0);
     }
     if (settings.goalReachedAction === 'autoPause') {
       setIsPaused(true);
       if (settings.voiceCues) {
         setTimeout(() => {
-          speakText('運動已自動暫停，請確認是否儲存紀錄。');
+          speakText('運動已自動暫停，請確認是否儲存紀錄。', settings.voiceVolume ?? 1.0);
         }, 3500);
       }
     }
@@ -304,14 +368,6 @@ export function RunProvider({ children }) {
   const updateMetricsAndGoal = (incDist, speedKmh, currentSec) => {
     setDistanceKm((prevDist) => {
       const nextDist = prevDist + incDist;
-
-      // Update Calories
-      const newCal = calculateCaloriesBurned(
-        profile.weightKg || 68,
-        currentSec,
-        speedKmh || 9.5
-      );
-      setCalories(newCal);
 
       // Check 1 KM Voice Cues & Splits
       const currentKmIndex = Math.floor(nextDist);
@@ -337,7 +393,8 @@ export function RunProvider({ children }) {
         if (settings.voiceCues) {
           const lastPaceStr = newSplits[newSplits.length - 1].pace;
           speakText(
-            `第 ${currentKmIndex} 公里完成，配速 ${lastPaceStr.replace("'", '分').replace('"', '秒')}`
+            `第 ${currentKmIndex} 公里完成，配速 ${lastPaceStr.replace("'", '分').replace('"', '秒')}`,
+            settings.voiceVolume ?? 1.0
           );
         }
       }
@@ -349,31 +406,38 @@ export function RunProvider({ children }) {
 
       return nextDist;
     });
+
+    // Pure side-effects cleanly placed outside setDistanceKm
+    const newCal = calculateCaloriesBurned(
+      profile.weightKg || 68,
+      currentSec,
+      speedKmh || 9.5
+    );
+    setCalories(newCal);
   };
 
   // Unified Location Processing Pipeline (for BOTH simulator & real GPS)
   const processLocationPoint = (lat, lng, rawSpeedMs = null, accuracy = null) => {
-    const newPoint = { lat, lng };
+    if (!isTracking || isPaused) return; // Ignore incoming GPS points when paused
+
     const currentSec = durationSecRef.current;
+    const newPoint = { lat, lng, timeSec: currentSec };
 
     let incDist = 0;
     let computedSpeedKmh = 0;
 
     if (simulatorMode) {
       setPathPoints((prevPath) => [...prevPath, newPoint]);
-      if (lastPointRef.current) {
-        incDist = getHaversineDistance(lastPointRef.current.lat, lastPointRef.current.lng, lat, lng);
-        if (rawSpeedMs !== null && rawSpeedMs > 0) {
-          computedSpeedKmh = rawSpeedMs * 3.6;
-        } else if (incDist > 0) {
-          computedSpeedKmh = incDist * 3600;
-        }
-      }
+
+      computedSpeedKmh = rawSpeedMs !== null && rawSpeedMs > 0 ? rawSpeedMs * 3.6 : 10.2;
+      incDist = (computedSpeedKmh * 1) / 3600; // 1s tick standard runner speed
+
       lastPointRef.current = newPoint;
+      gpsWindowRef.current.push({ lat, lng, timeSec: currentSec, distKm: incDist });
     } else {
       // Real GPS Mode Anti-Drift Filtering
 
-      // 1. Accuracy Filter: If GPS accuracy is worse than 45 meters (cell tower mode on screen lock), discard point
+      // 1. Accuracy Filter: If GPS accuracy is worse than 45 meters, discard point
       if (accuracy !== null && typeof accuracy === 'number' && accuracy > 45) {
         console.warn('Real GPS point discarded due to low accuracy:', accuracy);
         return;
@@ -383,37 +447,26 @@ export function RunProvider({ children }) {
         lastValidGpsRef.current = { lat, lng, timeSec: currentSec };
         lastPointRef.current = newPoint;
         setPathPoints((prevPath) => [...prevPath, newPoint]);
+        gpsWindowRef.current = [{ lat, lng, timeSec: currentSec, distKm: 0 }];
       } else {
         const rawDist = getHaversineDistance(lastValidGpsRef.current.lat, lastValidGpsRef.current.lng, lat, lng);
         const timeDeltaSec = Math.max(1, currentSec - lastValidGpsRef.current.timeSec);
         const impliedSpeedKmh = (rawDist / timeDeltaSec) * 3600;
 
-        // 2. Maximum Human Speed Filter: Running speed max ~25 km/h (2'24"/km pace)
-        const isSpeedSpike = impliedSpeedKmh > 25.0;
-
-        // 3. Screen Off / Large Time Gap Filter
-        const isLargeTimeGap = timeDeltaSec > 10;
+        // 2. Maximum Human Speed Filter: Running speed max ~28 km/h (2'08"/km pace)
+        const isSpeedSpike = impliedSpeedKmh > 28.0;
 
         if (isSpeedSpike) {
           console.warn(`GPS drift spike discarded! Speed: ${impliedSpeedKmh.toFixed(1)} km/h, distance: ${(rawDist * 1000).toFixed(0)}m in ${timeDeltaSec}s`);
           return;
         }
 
-        if (isLargeTimeGap && rawDist > 0.1) {
-          // If screen was off for >10s and GPS moved >100m, reset position anchor without adding wild jump distance
-          console.warn(`Screen wake GPS update after ${timeDeltaSec}s gap. Resetting position anchor.`);
-          lastValidGpsRef.current = { lat, lng, timeSec: currentSec };
-          lastPointRef.current = newPoint;
-          setPathPoints((prevPath) => [...prevPath, newPoint]);
-          return;
-        }
-
-        // Accumulate valid movement (>= 0.3 meters)
+        // Accumulate valid movement (>= 0.3 meters or time delta gap)
         if (rawDist >= 0.0003 || timeDeltaSec >= 1) {
           if (rawDist >= 0.0003) {
             incDist = rawDist;
           }
-          if (rawSpeedMs !== null && rawSpeedMs > 0 && rawSpeedMs * 3.6 <= 25) {
+          if (rawSpeedMs !== null && rawSpeedMs > 0 && rawSpeedMs * 3.6 <= 28) {
             computedSpeedKmh = rawSpeedMs * 3.6;
           } else if (incDist > 0 && timeDeltaSec > 0) {
             computedSpeedKmh = impliedSpeedKmh;
@@ -421,6 +474,34 @@ export function RunProvider({ children }) {
           lastValidGpsRef.current = { lat, lng, timeSec: currentSec };
           lastPointRef.current = newPoint;
           setPathPoints((prevPath) => [...prevPath, newPoint]);
+          gpsWindowRef.current.push({ lat, lng, timeSec: currentSec, distKm: incDist });
+        }
+      }
+    }
+
+    // Maintain 12-second rolling window buffer for instant pace & speed smoothing
+    gpsWindowRef.current = gpsWindowRef.current.filter((pt) => currentSec - pt.timeSec <= 12);
+
+    if (gpsWindowRef.current.length >= 2) {
+      const windowStart = gpsWindowRef.current[0];
+      const windowEnd = gpsWindowRef.current[gpsWindowRef.current.length - 1];
+      const windowTimeSec = Math.max(1, windowEnd.timeSec - windowStart.timeSec);
+
+      let windowDistKm = 0;
+      for (let i = 1; i < gpsWindowRef.current.length; i++) {
+        windowDistKm += gpsWindowRef.current[i].distKm || 0;
+      }
+
+      if (windowDistKm > 0.003 && windowTimeSec > 0) {
+        const rollingSpeed = (windowDistKm / windowTimeSec) * 3600;
+        const rollingPace = windowTimeSec / windowDistKm;
+
+        rollingPaceRef.current = rollingPace;
+
+        if (computedSpeedKmh <= 0) {
+          computedSpeedKmh = rollingSpeed;
+        } else {
+          computedSpeedKmh = (computedSpeedKmh * 0.4) + (rollingSpeed * 0.6);
         }
       }
     }
@@ -437,32 +518,98 @@ export function RunProvider({ children }) {
     }
   };
 
+  // Always keep processLocationPointRef updated to latest function
+  const processLocationPointRef = useRef(processLocationPoint);
+  processLocationPointRef.current = processLocationPoint;
+
   // Main Timer & Simulator Tick Loop
   useEffect(() => {
-    if (!isTracking || isPaused) return;
+    if (!isTracking) return;
+
+    // Check Auto-Resume when system auto-paused and speed goes back up
+    if (isPaused) {
+      if (settings.autoPause && isAutoPausedBySystemRef.current && currentSpeedKmh >= (settings.autoPauseSpeedThresholdKmh || 2.5) + 0.5) {
+        highSpeedSecondsRef.current += 1;
+        if (highSpeedSecondsRef.current >= 2) {
+          setIsPaused(false);
+          isAutoPausedBySystemRef.current = false;
+          highSpeedSecondsRef.current = 0;
+          lowSpeedSecondsRef.current = 0;
+          if (settings.voiceCues) {
+            speakText('偵測到持續移動，繼續計時跑步！', settings.voiceVolume ?? 1.0);
+          }
+        }
+      } else {
+        highSpeedSecondsRef.current = 0;
+      }
+      return;
+    }
 
     timerRef.current = setInterval(() => {
-      setDurationSeconds((prevSec) => {
-        const nextSec = prevSec + 1;
+      setDurationSeconds((prevSec) => prevSec + 1);
+      durationSecRef.current += 1;
+      const nextSec = durationSecRef.current;
 
-        if (simulatorMode && simulatorInstanceRef.current) {
-          const simData = simulatorInstanceRef.current.nextPoint(1);
-          processLocationPoint(simData.lat, simData.lng, simData.speedKmh / 3.6);
+      if (simulatorMode) {
+        if (!simulatorInstanceRef.current) {
+          simulatorInstanceRef.current = new GPSSimulator(settings.presetRoute || 'daan');
         }
-
-        // Time Goal check
-        if (targetGoal.type === 'time' && nextSec >= targetGoal.targetValue * 60 && !goalReached) {
-          triggerGoalReached(`目標時間 ${targetGoal.targetValue} 分鐘已達成！`);
+        const simData = simulatorInstanceRef.current.nextPoint(3); // 3x step for responsive testing UI updates
+        if (processLocationPointRef.current) {
+          processLocationPointRef.current(simData.lat, simData.lng, simData.speedKmh / 3.6);
         }
+      }
 
-        return nextSec;
-      });
+      // Auto-Pause check when speed is too low (Disabled in simulatorMode)
+      if (settings.autoPause && !simulatorMode) {
+        const pauseThreshold = settings.autoPauseSpeedThresholdKmh || 2.5;
+        if (currentSpeedKmh < pauseThreshold) {
+          lowSpeedSecondsRef.current += 1;
+          if (lowSpeedSecondsRef.current >= 5) {
+            setIsPaused(true);
+            isAutoPausedBySystemRef.current = true;
+            lowSpeedSecondsRef.current = 0;
+            if (settings.voiceCues) {
+              speakText('速度低於門檻，運動已自動暫停', settings.voiceVolume ?? 1.0);
+            }
+          }
+        } else {
+          lowSpeedSecondsRef.current = 0;
+        }
+      }
+
+      // Pace Zone Alert check (Debounce 25 seconds)
+      if (settings.paceZoneEnabled && settings.voiceCues && distanceKm >= 0.1) {
+        if (nextSec - lastPaceAlertTimeRef.current >= 25) {
+          const paceComp = getPaceComparison();
+          const curPaceSec = paceComp.currentPaceSec;
+          const minSec = paceToSeconds(settings.targetPaceMin || '05:00');
+          const maxSec = paceToSeconds(settings.targetPaceMax || '06:30');
+
+          if (curPaceSec > 60) {
+            if (curPaceSec < minSec) { // Too fast!
+              lastPaceAlertTimeRef.current = nextSec;
+              const pStr = paceComp.currentPaceStr.replace("'", '分').replace('"', '秒');
+              speakText(`注意！當前配速 ${pStr}，高於目標區間，請放慢步伐！`, settings.voiceVolume ?? 1.0);
+            } else if (curPaceSec > maxSec) { // Too slow!
+              lastPaceAlertTimeRef.current = nextSec;
+              const pStr = paceComp.currentPaceStr.replace("'", '分').replace('"', '秒');
+              speakText(`提醒！當前配速 ${pStr}，低於目標區間，請加加油！`, settings.voiceVolume ?? 1.0);
+            }
+          }
+        }
+      }
+
+      // Time Goal check
+      if (targetGoal.type === 'time' && nextSec >= targetGoal.targetValue * 60 && !goalReached) {
+        triggerGoalReached(`目標時間 ${targetGoal.targetValue} 分鐘已達成！`);
+      }
     }, 1000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isTracking, isPaused, simulatorMode, profile.weightKg, settings.voiceCues, targetGoal, goalReached, settings.goalReachedAction]);
+  }, [isTracking, isPaused, simulatorMode]);
 
   // Real Device Geolocation Watcher
   useEffect(() => {
@@ -471,7 +618,9 @@ export function RunProvider({ children }) {
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, speed, accuracy } = pos.coords;
-        processLocationPoint(latitude, longitude, speed, accuracy);
+        if (processLocationPointRef.current) {
+          processLocationPointRef.current(latitude, longitude, speed, accuracy);
+        }
       },
       (err) => console.warn('Real Geolocation warning:', err),
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
@@ -480,18 +629,16 @@ export function RunProvider({ children }) {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isTracking, isPaused, simulatorMode]);
 
-  // Dynamic Pace Comparison (Current Km Pace vs Overall Average Pace)
+  // Dynamic Pace Comparison (Instant Rolling Pace vs Overall Average Pace)
   const getPaceComparison = () => {
     const avgPaceSec = distanceKm > 0.05 && durationSeconds > 0 ? durationSeconds / distanceKm : 0;
     const avgPaceStr = formatPace(distanceKm, durationSeconds);
 
     const currentKmNum = Math.floor(distanceKm) + 1;
-    const distInCurrentKm = distanceKm - Math.floor(distanceKm);
-    const timeInCurrentKm = Math.max(0, durationSeconds - kmStartTimeRef.current);
 
     let currentPaceSec = 0;
-    if (distInCurrentKm >= 0.03 && timeInCurrentKm > 0) {
-      currentPaceSec = timeInCurrentKm / distInCurrentKm;
+    if (rollingPaceRef.current > 0) {
+      currentPaceSec = rollingPaceRef.current;
     } else if (currentSpeedKmh > 0) {
       currentPaceSec = 3600 / currentSpeedKmh;
     } else {
@@ -534,11 +681,18 @@ export function RunProvider({ children }) {
         goalReached,
         simulatorMode,
         setSimulatorMode,
+        isTouchLocked,
+        setIsTouchLocked,
+        isOutdoorView,
+        setIsOutdoorView,
         startRun,
         pauseRun,
         resumeRun,
         stopRun,
-        getPaceComparison
+        getPaceComparison,
+        generateGPX,
+        downloadFile,
+        calculatePersonalRecords
       }}
     >
       {children}
@@ -557,5 +711,14 @@ function getRunTitle(date) {
   else if (hours >= 9 && hours < 17) timeStr = '日間戶外跑';
   else if (hours >= 17 && hours < 21) timeStr = '傍晚舒壓跑';
   else timeStr = '深夜自主跑';
+  return timeStr;
+}
+
+function getHikeTitle(date) {
+  const hours = date.getHours();
+  let timeStr = '健行';
+  if (hours >= 5 && hours < 12) timeStr = '晨間山岳健行';
+  else if (hours >= 12 && hours < 17) timeStr = '午後步道探索';
+  else timeStr = '傍晚戶外健行';
   return timeStr;
 }

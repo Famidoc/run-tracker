@@ -20,11 +20,17 @@ const DEFAULT_PROFILE = {
 
 const DEFAULT_SETTINGS = {
   voiceCues: true,
+  voiceVolume: 1.0, // Speech & Cue Volume (0.2 to 1.0)
   cueDistanceKm: 1.0, // Every 1km
   useSimulator: false, // Default Real GPS for Production
   theme: 'dark',
   presetRoute: 'daan',
   goalReachedAction: 'continue', // 'continue' | 'autoPause'
+  autoPause: false, // 智慧自動暫停
+  autoPauseSpeedThresholdKmh: 2.5, // 速度門檻 km/h
+  paceZoneEnabled: false, // 雙向配速區間警報
+  targetPaceMin: "05:00", // 上限 (過快)
+  targetPaceMax: "06:30", // 下限 (過慢)
   defaultGoal: {
     type: 'free',
     distanceValue: 5.0,

@@ -33,7 +33,7 @@ export class GPSSimulator {
     this.nodes = this.route.nodes;
     this.currentNodeIndex = 0;
     this.progress = 0; // 0 to 1 between nodes
-    this.speedKmh = 10.2; // Default runner speed ~10.2 km/h
+    this.speedKmh = 10.2; // Default runner speed ~10.2 km/h (5'52"/km pace)
   }
 
   // Generate next coordinate based on delta time in seconds

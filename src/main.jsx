@@ -8,10 +8,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// Register PWA Service Worker for offline capability & Home Screen Installation
+// Register PWA Service Worker with auto-update
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch((err) => {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      reg.update();
+    }).catch((err) => {
       console.warn('SW registration warning:', err);
     });
   });
