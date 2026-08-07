@@ -9,9 +9,19 @@ export function AnalyticsScreen() {
 
   // Calculate stats from history
   const totalRuns = history.length;
-  const totalDistance = history.reduce((sum, item) => sum + item.distanceKm, 0);
-  const totalDuration = history.reduce((sum, item) => sum + item.durationSeconds, 0);
-  const totalCalories = history.reduce((sum, item) => sum + item.calories, 0);
+  const totalDistance = history.reduce((sum, item) => sum + (item.distanceKm || 0), 0);
+  const totalDuration = history.reduce((sum, item) => sum + (item.durationSeconds || 0), 0);
+  const totalCalories = history.reduce((sum, item) => sum + (item.calories || 0), 0);
+
+  // Calculate current week distance (Monday to Sunday)
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0 is Sun, 1 is Mon...
+  const distToMonday = (dayOfWeek + 6) % 7;
+  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distToMonday, 0, 0, 0, 0);
+
+  const thisWeekDistance = history
+    .filter((run) => run && run.date && new Date(run.date) >= startOfWeek)
+    .reduce((sum, item) => sum + (item.distanceKm || 0), 0);
 
   // Generate 7 days bar chart data
   const chartDays = getPast7DaysData(history);
@@ -72,7 +82,7 @@ export function AnalyticsScreen() {
             <span style={{ fontWeight: '800', fontSize: '15px', color: '#FFD600' }}>🏆 個人生涯最佳紀錄 (PRs)</span>
           </div>
           <span style={{ fontSize: '11px', color: '#00E676', fontWeight: '700', background: 'rgba(0, 230, 118, 0.15)', padding: '2px 8px', borderRadius: '10px' }}>
-            自動計算
+            自動檢測
           </span>
         </div>
 
@@ -98,7 +108,7 @@ export function AnalyticsScreen() {
               <span>單次最長距離</span>
             </div>
             <div style={{ fontSize: '18px', fontWeight: '800', color: '#00E676', marginTop: '2px' }}>
-              {prs.longestDist ? `${prs.longestDist.distanceKm} km` : '0.0 km'}
+              {prs.longestDist ? `${prs.longestDist.distanceKm.toFixed(2)} km` : '0.00 km'}
             </div>
             <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
               {prs.longestDist ? new Date(prs.longestDist.date).toLocaleDateString() : '尚無紀錄'}
@@ -143,12 +153,12 @@ export function AnalyticsScreen() {
             <span style={{ fontWeight: '700', fontSize: '14px' }}>本週目標進度</span>
           </div>
           <span style={{ fontSize: '13px', color: '#00E676', fontWeight: '800' }}>
-            {totalDistance.toFixed(1)} / {profile.weeklyTargetKm || 25} KM
+            {thisWeekDistance.toFixed(1)} / {profile.weeklyTargetKm || 25} KM
           </span>
         </div>
         <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.08)', borderRadius: '5px', overflow: 'hidden' }}>
           <div style={{
-            width: `${Math.min(100, (totalDistance / (profile.weeklyTargetKm || 25)) * 100)}%`,
+            width: `${Math.min(100, (thisWeekDistance / (profile.weeklyTargetKm || 25)) * 100)}%`,
             height: '100%',
             background: 'linear-gradient(90deg, #00E5FF, #00E676)',
             borderRadius: '5px'
@@ -205,24 +215,6 @@ export function AnalyticsScreen() {
           <div className="sub-metric-value">{formatTime(totalDuration)}</div>
         </div>
       </div>
-
-      {/* Personal Best (PB) Card */}
-      {prs.longestDist && (
-        <div className="glass-card" style={{ background: 'linear-gradient(135deg, #121824, #1E293B)', border: '1px solid rgba(255,214,0,0.3)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <Award size={22} color="#FFD600" />
-            <span style={{ fontWeight: '800', color: '#FFD600', fontSize: '15px' }}>個人最長紀錄 (PB)</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <div style={{ fontSize: '32px', fontWeight: '800', color: '#FFF' }}>
-              {prs.longestDist.distanceKm} <span style={{ fontSize: '14px', color: '#8E9BAE' }}>KM</span>
-            </div>
-            <div style={{ fontSize: '12px', color: '#8E9BAE' }}>
-              {new Date(prs.longestDist.date).toLocaleDateString()}
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

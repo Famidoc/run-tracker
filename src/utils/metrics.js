@@ -374,25 +374,41 @@ export function calculatePersonalRecords(history) {
     const date = run.date;
     const runId = run.id;
 
-    // Check splits for fastest 1k
-    const splits = ensureCompleteKmSplits(run);
-    splits.forEach((s) => {
-      if (s.timeSec && s.timeSec > 60 && s.timeSec < best1kPaceSec) {
-        best1kPaceSec = s.timeSec;
-        defaultPRs.best1k = {
-          pace: s.pace || formatPace(1, s.timeSec),
-          timeSec: s.timeSec,
-          date,
-          runId
-        };
+    // Check splits for fastest 1k (only for runs >= 1.0 km with realistic pace >= 135s / 2'15")
+    if (dist >= 1.0) {
+      const splits = run.kmSplits || [];
+      splits.forEach((s) => {
+        if (s.timeSec && s.timeSec >= 135 && s.timeSec <= 900 && s.timeSec < best1kPaceSec) {
+          best1kPaceSec = s.timeSec;
+          defaultPRs.best1k = {
+            pace: s.pace || formatPace(1, s.timeSec),
+            timeSec: s.timeSec,
+            date,
+            runId
+          };
+        }
+      });
+
+      // Fallback: If no kmSplits exist, calculate overall avg pace if run is >= 1.0km
+      if (!defaultPRs.best1k && dur > 0) {
+        const avgSecPerKm = dur / dist;
+        if (avgSecPerKm >= 135 && avgSecPerKm <= 900 && avgSecPerKm < best1kPaceSec) {
+          best1kPaceSec = avgSecPerKm;
+          defaultPRs.best1k = {
+            pace: formatPace(1, avgSecPerKm),
+            timeSec: Math.round(avgSecPerKm),
+            date,
+            runId
+          };
+        }
       }
-    });
+    }
 
     // Fastest 5k
     if (dist >= 5.0 && dur > 0 && dur < best5kTimeSec) {
       best5kTimeSec = dur;
       defaultPRs.best5k = {
-        distanceKm: dist,
+        distanceKm: parseFloat(dist.toFixed(2)),
         durationSeconds: dur,
         avgPace: run.avgPace || formatPace(dist, dur),
         date,
@@ -404,9 +420,20 @@ export function calculatePersonalRecords(history) {
     if (dist >= 10.0 && dur > 0 && dur < best10kTimeSec) {
       best10kTimeSec = dur;
       defaultPRs.best10k = {
-        distanceKm: dist,
+        distanceKm: parseFloat(dist.toFixed(2)),
         durationSeconds: dur,
         avgPace: run.avgPace || formatPace(dist, dur),
+        date,
+        runId
+      };
+    }
+
+    // Longest Distance
+    if (dist > maxDistKm && dist > 0) {
+      maxDistKm = dist;
+      defaultPRs.longestDist = {
+        distanceKm: parseFloat(dist.toFixed(2)),
+        durationSeconds: dur,
         date,
         runId
       };
@@ -416,7 +443,7 @@ export function calculatePersonalRecords(history) {
     if (dur > maxDurationSec) {
       maxDurationSec = dur;
       defaultPRs.longestTime = {
-        distanceKm: dist,
+        distanceKm: parseFloat(dist.toFixed(2)),
         durationSeconds: dur,
         date,
         runId

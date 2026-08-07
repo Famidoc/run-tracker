@@ -73,6 +73,8 @@ export function RunProvider({ children }) {
   const highSpeedSecondsRef = useRef(0);
   const isAutoPausedBySystemRef = useRef(false);
   const lastPaceAlertTimeRef = useRef(0);
+  const gracePeriodSecRef = useRef(0);
+  const outOfZoneSecondsRef = useRef(0);
 
   const setSimulatorMode = (val) => {
     setSimulatorModeState(val);
@@ -178,6 +180,8 @@ export function RunProvider({ children }) {
     highSpeedSecondsRef.current = 0;
     isAutoPausedBySystemRef.current = false;
     lastPaceAlertTimeRef.current = 0;
+    gracePeriodSecRef.current = 20; // 20s Grace Period on Start to prevent auto-pause trap
+    outOfZoneSecondsRef.current = 0;
 
     if (settings.voiceCues) {
       speakText('跑步開始，加油！', settings.voiceVolume ?? 1.0);
@@ -205,6 +209,8 @@ export function RunProvider({ children }) {
     isAutoPausedBySystemRef.current = false;
     lowSpeedSecondsRef.current = 0;
     highSpeedSecondsRef.current = 0;
+    gracePeriodSecRef.current = 20; // 20s Grace Period on Resume to prevent auto-pause trap
+    outOfZoneSecondsRef.current = 0;
 
     // CRITICAL RESET: Reset lastValidGpsRef & rolling window so post-resume location doesn't calculate jump against pre-pause location
     lastValidGpsRef.current = null;
@@ -479,8 +485,8 @@ export function RunProvider({ children }) {
       }
     }
 
-    // Maintain 12-second rolling window buffer for instant pace & speed smoothing
-    gpsWindowRef.current = gpsWindowRef.current.filter((pt) => currentSec - pt.timeSec <= 12);
+    // Maintain 25-second rolling window buffer for instant pace & speed smoothing
+    gpsWindowRef.current = gpsWindowRef.current.filter((pt) => currentSec - pt.timeSec <= 25);
 
     if (gpsWindowRef.current.length >= 2) {
       const windowStart = gpsWindowRef.current[0];
@@ -493,15 +499,22 @@ export function RunProvider({ children }) {
       }
 
       if (windowDistKm > 0.003 && windowTimeSec > 0) {
-        const rollingSpeed = (windowDistKm / windowTimeSec) * 3600;
-        const rollingPace = windowTimeSec / windowDistKm;
+        const rawRollingSpeed = (windowDistKm / windowTimeSec) * 3600;
+        const rawRollingPace = windowTimeSec / windowDistKm; // sec/km
 
-        rollingPaceRef.current = rollingPace;
+        if (rawRollingSpeed >= 2.0 && rawRollingSpeed <= 26.0) {
+          if (rollingPaceRef.current === 0) {
+            rollingPaceRef.current = rawRollingPace;
+          } else {
+            // EMA smoothing: 80% history + 20% instant sample
+            rollingPaceRef.current = (rollingPaceRef.current * 0.8) + (rawRollingPace * 0.2);
+          }
+        }
 
         if (computedSpeedKmh <= 0) {
-          computedSpeedKmh = rollingSpeed;
+          computedSpeedKmh = rawRollingSpeed;
         } else {
-          computedSpeedKmh = (computedSpeedKmh * 0.4) + (rollingSpeed * 0.6);
+          computedSpeedKmh = (computedSpeedKmh * 0.5) + (rawRollingSpeed * 0.5);
         }
       }
     }
@@ -550,6 +563,10 @@ export function RunProvider({ children }) {
       durationSecRef.current += 1;
       const nextSec = durationSecRef.current;
 
+      if (gracePeriodSecRef.current > 0) {
+        gracePeriodSecRef.current -= 1;
+      }
+
       if (simulatorMode) {
         if (!simulatorInstanceRef.current) {
           simulatorInstanceRef.current = new GPSSimulator(settings.presetRoute || 'daan');
@@ -560,8 +577,8 @@ export function RunProvider({ children }) {
         }
       }
 
-      // Auto-Pause check when speed is too low (Disabled in simulatorMode)
-      if (settings.autoPause && !simulatorMode) {
+      // Auto-Pause check when speed is too low (Disabled in simulatorMode or during 20s grace period / start phase)
+      if (settings.autoPause && !simulatorMode && gracePeriodSecRef.current <= 0 && nextSec >= 20 && distanceKm >= 0.03) {
         const pauseThreshold = settings.autoPauseSpeedThresholdKmh || 2.5;
         if (currentSpeedKmh < pauseThreshold) {
           lowSpeedSecondsRef.current += 1;
@@ -576,27 +593,34 @@ export function RunProvider({ children }) {
         } else {
           lowSpeedSecondsRef.current = 0;
         }
+      } else {
+        lowSpeedSecondsRef.current = 0;
       }
 
-      // Pace Zone Alert check (Debounce 25 seconds)
+      // Pace Zone Alert check (Debounce 25 seconds & require 10 seconds continuous out-of-zone)
       if (settings.paceZoneEnabled && settings.voiceCues && distanceKm >= 0.1) {
-        if (nextSec - lastPaceAlertTimeRef.current >= 25) {
-          const paceComp = getPaceComparison();
-          const curPaceSec = paceComp.currentPaceSec;
-          const minSec = paceToSeconds(settings.targetPaceMin || '05:00');
-          const maxSec = paceToSeconds(settings.targetPaceMax || '06:30');
+        const paceComp = getPaceComparison();
+        const curPaceSec = paceComp.currentPaceSec;
+        const minSec = paceToSeconds(settings.targetPaceMin || '05:00');
+        const maxSec = paceToSeconds(settings.targetPaceMax || '06:30');
 
-          if (curPaceSec > 60) {
-            if (curPaceSec < minSec) { // Too fast!
-              lastPaceAlertTimeRef.current = nextSec;
-              const pStr = paceComp.currentPaceStr.replace("'", '分').replace('"', '秒');
+        const isTooFast = curPaceSec > 120 && curPaceSec < minSec;
+        const isTooSlow = curPaceSec > maxSec && curPaceSec < 1200;
+
+        if (isTooFast || isTooSlow) {
+          outOfZoneSecondsRef.current += 1;
+          if (outOfZoneSecondsRef.current >= 10 && (nextSec - lastPaceAlertTimeRef.current >= 25)) {
+            lastPaceAlertTimeRef.current = nextSec;
+            outOfZoneSecondsRef.current = 0;
+            const pStr = paceComp.currentPaceStr.replace("'", '分').replace('"', '秒');
+            if (isTooFast) {
               speakText(`注意！當前配速 ${pStr}，高於目標區間，請放慢步伐！`, settings.voiceVolume ?? 1.0);
-            } else if (curPaceSec > maxSec) { // Too slow!
-              lastPaceAlertTimeRef.current = nextSec;
-              const pStr = paceComp.currentPaceStr.replace("'", '分').replace('"', '秒');
+            } else {
               speakText(`提醒！當前配速 ${pStr}，低於目標區間，請加加油！`, settings.voiceVolume ?? 1.0);
             }
           }
+        } else {
+          outOfZoneSecondsRef.current = 0;
         }
       }
 
@@ -629,7 +653,7 @@ export function RunProvider({ children }) {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [isTracking, isPaused, simulatorMode]);
 
-  // Dynamic Pace Comparison (Instant Rolling Pace vs Overall Average Pace)
+  // Dynamic Pace Comparison (Current Km Segment Pace vs Overall Average Pace)
   const getPaceComparison = () => {
     const avgPaceSec = distanceKm > 0.05 && durationSeconds > 0 ? durationSeconds / distanceKm : 0;
     const avgPaceStr = formatPace(distanceKm, durationSeconds);
@@ -637,12 +661,30 @@ export function RunProvider({ children }) {
     const currentKmNum = Math.floor(distanceKm) + 1;
 
     let currentPaceSec = 0;
-    if (rollingPaceRef.current > 0) {
+
+    const currentKmDist = distanceKm - Math.floor(distanceKm);
+    const currentKmTime = Math.max(0, durationSeconds - kmStartTimeRef.current);
+
+    if (currentKmDist >= 0.03 && currentKmTime > 0) {
+      const segmentPaceSec = currentKmTime / currentKmDist;
+      if (currentKmDist < 0.10 && rollingPaceRef.current > 0) {
+        // Blend rolling pace and segment pace at start of new kilometer for smooth transition
+        const blendWeight = (currentKmDist - 0.03) / 0.07; // 0.0 to 1.0
+        currentPaceSec = (segmentPaceSec * blendWeight) + (rollingPaceRef.current * (1 - blendWeight));
+      } else {
+        currentPaceSec = segmentPaceSec;
+      }
+    } else if (rollingPaceRef.current > 0) {
       currentPaceSec = rollingPaceRef.current;
     } else if (currentSpeedKmh > 0) {
       currentPaceSec = 3600 / currentSpeedKmh;
     } else {
       currentPaceSec = avgPaceSec;
+    }
+
+    // Clamp currentPaceSec to realistic human bounds (120s to 1200s, i.e., 2:00 to 20:00)
+    if (currentPaceSec > 0) {
+      currentPaceSec = Math.min(1200, Math.max(120, currentPaceSec));
     }
 
     const currentPaceStr = currentPaceSec > 0 ? formatPace(1, currentPaceSec) : "--'--\"";
