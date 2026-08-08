@@ -405,27 +405,79 @@ export function calculatePersonalRecords(history) {
     }
 
     // Fastest 5k
-    if (dist >= 5.0 && dur > 0 && dur < best5kTimeSec) {
-      best5kTimeSec = dur;
-      defaultPRs.best5k = {
-        distanceKm: parseFloat(dist.toFixed(2)),
-        durationSeconds: dur,
-        avgPace: run.avgPace || formatPace(dist, dur),
-        date,
-        runId
-      };
+    if (dist >= 5.0 && dur > 0) {
+      let duration5k = 0;
+      let avgPace5k = '';
+
+      const splits = run.kmSplits || [];
+      if (splits.length >= 5) {
+        let min5kWindowSec = Infinity;
+        for (let i = 0; i <= splits.length - 5; i++) {
+          const windowSec = splits.slice(i, i + 5).reduce((sum, s) => sum + (s.timeSec || 0), 0);
+          if (windowSec > 0 && windowSec < min5kWindowSec) {
+            min5kWindowSec = windowSec;
+          }
+        }
+        if (min5kWindowSec < Infinity) {
+          duration5k = min5kWindowSec;
+          avgPace5k = formatPace(5, min5kWindowSec);
+        }
+      }
+
+      if (!duration5k) {
+        const paceSec = dur / dist;
+        duration5k = Math.round(paceSec * 5);
+        avgPace5k = run.avgPace || formatPace(dist, dur);
+      }
+
+      if (duration5k < best5kTimeSec) {
+        best5kTimeSec = duration5k;
+        defaultPRs.best5k = {
+          distanceKm: 5.0,
+          durationSeconds: duration5k,
+          avgPace: avgPace5k,
+          date,
+          runId
+        };
+      }
     }
 
     // Fastest 10k
-    if (dist >= 10.0 && dur > 0 && dur < best10kTimeSec) {
-      best10kTimeSec = dur;
-      defaultPRs.best10k = {
-        distanceKm: parseFloat(dist.toFixed(2)),
-        durationSeconds: dur,
-        avgPace: run.avgPace || formatPace(dist, dur),
-        date,
-        runId
-      };
+    if (dist >= 10.0 && dur > 0) {
+      let duration10k = 0;
+      let avgPace10k = '';
+
+      const splits = run.kmSplits || [];
+      if (splits.length >= 10) {
+        let min10kWindowSec = Infinity;
+        for (let i = 0; i <= splits.length - 10; i++) {
+          const windowSec = splits.slice(i, i + 10).reduce((sum, s) => sum + (s.timeSec || 0), 0);
+          if (windowSec > 0 && windowSec < min10kWindowSec) {
+            min10kWindowSec = windowSec;
+          }
+        }
+        if (min10kWindowSec < Infinity) {
+          duration10k = min10kWindowSec;
+          avgPace10k = formatPace(10, min10kWindowSec);
+        }
+      }
+
+      if (!duration10k) {
+        const paceSec = dur / dist;
+        duration10k = Math.round(paceSec * 10);
+        avgPace10k = run.avgPace || formatPace(dist, dur);
+      }
+
+      if (duration10k < best10kTimeSec) {
+        best10kTimeSec = duration10k;
+        defaultPRs.best10k = {
+          distanceKm: 10.0,
+          durationSeconds: duration10k,
+          avgPace: avgPace10k,
+          date,
+          runId
+        };
+      }
     }
 
     // Longest Distance
