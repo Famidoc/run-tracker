@@ -374,29 +374,33 @@ export function calculatePersonalRecords(history) {
     const date = run.date;
     const runId = run.id;
 
-    // Check splits for fastest 1k (only for runs >= 1.0 km with realistic pace >= 135s / 2'15")
+    // Check splits for fastest 1k (only for runs >= 1.0 km)
     if (dist >= 1.0) {
+      const runAvgPaceSec = dur > 0 ? dur / dist : 360;
+      // Filter out GPS drift anomalies: split pace must be >= 210s (3'30"/km) AND at least 65% of overall run avg pace
+      const minRealistic1kSec = Math.max(210, Math.round(runAvgPaceSec * 0.65));
+
       const splits = run.kmSplits || [];
       splits.forEach((s) => {
-        if (s.timeSec && s.timeSec >= 135 && s.timeSec <= 900 && s.timeSec < best1kPaceSec) {
-          best1kPaceSec = s.timeSec;
+        const splitTime = s.timeSec || (s.pace ? paceToSeconds(s.pace) : 0);
+        if (splitTime >= minRealistic1kSec && splitTime <= 900 && splitTime < best1kPaceSec) {
+          best1kPaceSec = splitTime;
           defaultPRs.best1k = {
-            pace: s.pace || formatPace(1, s.timeSec),
-            timeSec: s.timeSec,
+            pace: formatPace(1, splitTime),
+            timeSec: splitTime,
             date,
             runId
           };
         }
       });
 
-      // Fallback: If no kmSplits exist, calculate overall avg pace if run is >= 1.0km
-      if (!defaultPRs.best1k && dur > 0) {
-        const avgSecPerKm = dur / dist;
-        if (avgSecPerKm >= 135 && avgSecPerKm <= 900 && avgSecPerKm < best1kPaceSec) {
-          best1kPaceSec = avgSecPerKm;
+      // Fallback: If no kmSplits passed anomaly check or exist, check overall run avg pace
+      if (dur > 0) {
+        if (runAvgPaceSec >= 210 && runAvgPaceSec <= 900 && runAvgPaceSec < best1kPaceSec) {
+          best1kPaceSec = runAvgPaceSec;
           defaultPRs.best1k = {
-            pace: formatPace(1, avgSecPerKm),
-            timeSec: Math.round(avgSecPerKm),
+            pace: formatPace(1, runAvgPaceSec),
+            timeSec: Math.round(runAvgPaceSec),
             date,
             runId
           };
