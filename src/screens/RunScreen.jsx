@@ -23,6 +23,7 @@ export function RunScreen() {
     resumeRun,
     stopRun,
     deleteRunRecord,
+    discardRunRecord,
     simulatorMode,
     getPaceComparison,
     isTouchLocked,
@@ -32,6 +33,7 @@ export function RunScreen() {
   } = useRunContext();
 
   const [savedSummary, setSavedSummary] = useState(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [defaultSavedSuccess, setDefaultSavedSuccess] = useState(false);
 
   // Touch Guard hold timer state
@@ -729,12 +731,7 @@ export function RunScreen() {
                   cursor: 'pointer',
                   transition: 'all 0.2s ease'
                 }}
-                onClick={() => {
-                  if (savedSummary?.id && deleteRunRecord) {
-                    deleteRunRecord(savedSummary.id);
-                  }
-                  setSavedSummary(null);
-                }}
+                onClick={() => setShowDiscardConfirm(true)}
               >
                 <Trash2 size={18} />
                 <span>不用儲存</span>
@@ -754,10 +751,102 @@ export function RunScreen() {
                   gap: '6px',
                   margin: 0
                 }}
-                onClick={() => setSavedSummary(null)}
+                onClick={() => {
+                  setShowDiscardConfirm(false);
+                  setSavedSummary(null);
+                }}
               >
                 <Check size={18} />
                 <span>確認儲存</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discard Confirmation Safety Dialog */}
+      {showDiscardConfirm && savedSummary && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 350,
+          padding: '20px'
+        }}>
+          <div className="glass-card" style={{
+            maxWidth: '380px',
+            width: '100%',
+            border: '1.5px solid rgba(255, 23, 68, 0.5)',
+            textAlign: 'center',
+            padding: '24px 20px',
+            boxShadow: '0 12px 40px rgba(255, 23, 68, 0.2)'
+          }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              background: 'rgba(255, 23, 68, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              color: '#FF1744'
+            }}>
+              <ShieldAlert size={32} />
+            </div>
+
+            <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#FFF', marginBottom: '8px' }}>
+              確定不儲存這筆紀錄嗎？
+            </h3>
+
+            <p style={{ fontSize: '13px', color: '#8E9BAE', lineHeight: '1.6', marginBottom: '16px' }}>
+              本次訓練共 <span style={{ color: '#00E676', fontWeight: '800' }}>{savedSummary.distanceKm} 公里</span>，耗時 <span style={{ color: '#00E5FF', fontWeight: '800' }}>{formatTime(savedSummary.durationSeconds)}</span>。<br />
+              點擊捨棄後，紀錄將被移至<span style={{ color: '#FFD600', fontWeight: '700' }}>【最近刪除 (回收站)】</span>保留 30 天，您隨時可在「歷史紀錄」中救回。
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                className="btn-primary"
+                style={{
+                  flex: 1.2,
+                  padding: '12px',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: '800',
+                  margin: 0
+                }}
+                onClick={() => setShowDiscardConfirm(false)}
+              >
+                保留並儲存
+              </button>
+
+              <button
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 23, 68, 0.15)',
+                  border: '1px solid rgba(255, 23, 68, 0.5)',
+                  color: '#FF1744',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  if (discardRunRecord) {
+                    discardRunRecord(savedSummary);
+                  } else if (deleteRunRecord) {
+                    deleteRunRecord(savedSummary.id);
+                  }
+                  setShowDiscardConfirm(false);
+                  setSavedSummary(null);
+                }}
+              >
+                移至回收站
               </button>
             </div>
           </div>

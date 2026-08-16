@@ -1,10 +1,11 @@
 /**
  * RunTracker Storage Service
- * Handles persistence of running history, user profile, and settings.
+ * Handles persistence of running history, user profile, settings, and trash bin.
  */
 
 const STORAGE_KEYS = {
   RUN_HISTORY: 'runtracker_history_v1',
+  RUN_TRASH: 'runtracker_trash_v1',
   USER_PROFILE: 'runtracker_profile_v1',
   SETTINGS: 'runtracker_settings_v1'
 };
@@ -89,7 +90,11 @@ export const StorageService = {
   saveRunRecord(record) {
     try {
       const history = this.getHistory();
-      const updated = [record, ...history];
+      // Avoid duplicate ID
+      const filtered = history.filter(item => item.id !== record.id);
+      const updated = [record, ...filtered];
+      // Sort descending by date
+      updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       localStorage.setItem(STORAGE_KEYS.RUN_HISTORY, JSON.stringify(updated));
       return updated;
     } catch (e) {
@@ -98,20 +103,124 @@ export const StorageService = {
     }
   },
 
-  deleteRunRecord(id) {
+  // Move to Trash (Soft delete with 30-day retention)
+  moveToTrash(id) {
     try {
       const history = this.getHistory();
-      const updated = history.filter(item => item.id !== id);
-      localStorage.setItem(STORAGE_KEYS.RUN_HISTORY, JSON.stringify(updated));
-      return updated;
+      const targetRecord = history.find(item => item.id === id);
+      const updatedHistory = history.filter(item => item.id !== id);
+      localStorage.setItem(STORAGE_KEYS.RUN_HISTORY, JSON.stringify(updatedHistory));
+
+      if (targetRecord) {
+        const trash = this.getTrash();
+        const trashItem = {
+          ...targetRecord,
+          deletedAt: new Date().toISOString()
+        };
+        const updatedTrash = [trashItem, ...trash.filter(item => item.id !== id)];
+        localStorage.setItem(STORAGE_KEYS.RUN_TRASH, JSON.stringify(updatedTrash));
+      }
+      return { history: updatedHistory, trash: this.getTrash() };
     } catch (e) {
-      console.error('Delete run error:', e);
+      console.error('Move to trash error:', e);
+      return { history: this.getHistory(), trash: this.getTrash() };
+    }
+  },
+
+  // Move direct record to trash (e.g. from discard button on summary modal)
+  addDirectToTrash(record) {
+    try {
+      const trash = this.getTrash();
+      const trashItem = {
+        ...record,
+        deletedAt: new Date().toISOString()
+      };
+      const updatedTrash = [trashItem, ...trash.filter(item => item.id !== record.id)];
+      localStorage.setItem(STORAGE_KEYS.RUN_TRASH, JSON.stringify(updatedTrash));
+      return updatedTrash;
+    } catch (e) {
+      console.error('Add direct to trash error:', e);
+      return this.getTrash();
+    }
+  },
+
+  // Get Trash items
+  getTrash() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.RUN_TRASH);
+      if (!data) return [];
+      return JSON.parse(data);
+    } catch {
       return [];
+    }
+  },
+
+  // Restore record from trash back to history
+  restoreFromTrash(id) {
+    try {
+      const trash = this.getTrash();
+      const targetRecord = trash.find(item => item.id === id);
+      const updatedTrash = trash.filter(item => item.id !== id);
+      localStorage.setItem(STORAGE_KEYS.RUN_TRASH, JSON.stringify(updatedTrash));
+
+      let updatedHistory = this.getHistory();
+      if (targetRecord) {
+        // Remove the deletedAt field before restoring
+        const { deletedAt, ...restoredRecord } = targetRecord;
+        updatedHistory = this.saveRunRecord(restoredRecord);
+      }
+      return { history: updatedHistory, trash: updatedTrash };
+    } catch (e) {
+      console.error('Restore from trash error:', e);
+      return { history: this.getHistory(), trash: this.getTrash() };
+    }
+  },
+
+  // Permanently delete a single item from trash
+  permanentDeleteTrash(id) {
+    try {
+      const trash = this.getTrash();
+      const updatedTrash = trash.filter(item => item.id !== id);
+      localStorage.setItem(STORAGE_KEYS.RUN_TRASH, JSON.stringify(updatedTrash));
+      return updatedTrash;
+    } catch (e) {
+      console.error('Permanent delete error:', e);
+      return [];
+    }
+  },
+
+  // Empty entire trash
+  emptyTrash() {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.RUN_TRASH);
+      return [];
+    } catch (e) {
+      console.error('Empty trash error:', e);
+      return [];
+    }
+  },
+
+  // Auto clean trash older than 30 days
+  clearOldTrash(retentionDays = 30) {
+    try {
+      const trash = this.getTrash();
+      const now = Date.now();
+      const maxAgeMs = retentionDays * 24 * 60 * 60 * 1000;
+      const validTrash = trash.filter(item => {
+        const deletedTime = item.deletedAt ? new Date(item.deletedAt).getTime() : now;
+        return (now - deletedTime) <= maxAgeMs;
+      });
+      localStorage.setItem(STORAGE_KEYS.RUN_TRASH, JSON.stringify(validTrash));
+      return validTrash;
+    } catch (e) {
+      console.error('Clear old trash error:', e);
+      return this.getTrash();
     }
   },
 
   clearAllData() {
     localStorage.removeItem(STORAGE_KEYS.RUN_HISTORY);
+    localStorage.removeItem(STORAGE_KEYS.RUN_TRASH);
     localStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
     localStorage.removeItem(STORAGE_KEYS.SETTINGS);
   },
@@ -121,6 +230,7 @@ export const StorageService = {
       profile: this.getProfile(),
       settings: this.getSettings(),
       history: this.getHistory(),
+      trash: this.getTrash(),
       exportDate: new Date().toISOString()
     };
     return JSON.stringify(data, null, 2);
@@ -133,6 +243,9 @@ export const StorageService = {
       if (parsed.settings) this.saveSettings(parsed.settings);
       if (parsed.history && Array.isArray(parsed.history)) {
         localStorage.setItem(STORAGE_KEYS.RUN_HISTORY, JSON.stringify(parsed.history));
+      }
+      if (parsed.trash && Array.isArray(parsed.trash)) {
+        localStorage.setItem(STORAGE_KEYS.RUN_TRASH, JSON.stringify(parsed.trash));
       }
       return true;
     } catch (e) {

@@ -345,3 +345,271 @@ body {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* Navbar 5-Tab Optimization */
+.nav-tab {
+  padding: 6px 10px;
+}
+
+/* Help Screen & QR Code Styling */
+.help-screen {
+  padding: 20px;
+  padding-bottom: 40px;
+}
+
+.qr-card-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: linear-gradient(135deg, rgba(18, 24, 36, 0.95), rgba(13, 19, 31, 0.95));
+  border: 1px solid rgba(0, 230, 118, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 230, 118, 0.12);
+}
+
+.qr-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  text-align: left;
+  width: 100%;
+}
+
+.qr-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(0, 230, 118, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--neon-green);
+  border: 1px solid rgba(0, 230, 118, 0.3);
+  flex-shrink: 0;
+}
+
+.qr-badge-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.qr-card-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #FFF;
+}
+
+.qr-card-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.qr-code-wrapper {
+  margin: 10px 0 20px 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.qr-code-border {
+  padding: 14px;
+  background: #FFFFFF;
+  border-radius: 18px;
+  box-shadow: 0 0 25px rgba(0, 230, 118, 0.25), 0 0 50px rgba(0, 0, 0, 0.5);
+  display: inline-flex;
+}
+
+.qr-url-box {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+
+.qr-url-box:hover {
+  border-color: var(--neon-green);
+  background: rgba(0, 230, 118, 0.05);
+}
+
+.qr-url-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: monospace;
+}
+
+.qr-url-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--neon-green);
+  flex-shrink: 0;
+}
+
+.qr-action-buttons {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.qr-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.qr-btn .btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.qr-btn-copy {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+}
+
+.qr-btn-copy:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.qr-btn-copy.copied {
+  background: rgba(0, 230, 118, 0.15);
+  color: var(--neon-green);
+  border-color: var(--neon-green);
+}
+
+.qr-btn-share {
+  background: linear-gradient(135deg, var(--neon-green), #00C853);
+  color: #0A0E17;
+  font-weight: 700;
+  box-shadow: 0 4px 16px var(--neon-green-glow);
+}
+
+.qr-btn-share:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 230, 118, 0.4);
+}
+
+/* Help Sections */
+.help-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.help-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 10px;
+}
+
+.help-section-title h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.section-title-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.text-green { color: var(--neon-green); }
+.text-cyan { color: var(--neon-cyan); }
+.text-amber { color: var(--neon-amber); }
+.text-purple { color: #D500F9; }
+
+.help-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.help-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #CBD5E1;
+}
+
+.help-list li strong {
+  color: #FFF;
+}
+
+.list-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.inline-icon {
+  width: 14px;
+  height: 14px;
+  display: inline;
+  vertical-align: middle;
+}
+
+.help-notice-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.help-notice-box.warning {
+  background: rgba(255, 214, 0, 0.08);
+  border: 1px solid rgba(255, 214, 0, 0.3);
+  color: #FFE082;
+}
+
+.notice-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--neon-amber);
+  flex-shrink: 0;
+}
+
+.help-footer-info {
+  text-align: center;
+  margin-top: 24px;
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.footer-subtext {
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+

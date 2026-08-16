@@ -39,6 +39,13 @@ export function RunProvider({ children }) {
   const [profile, setProfile] = useState(() => StorageService.getProfile());
   const [settings, setSettings] = useState(() => StorageService.getSettings());
   const [history, setHistory] = useState(() => StorageService.getHistory());
+  const [trash, setTrash] = useState(() => StorageService.getTrash());
+
+  // Auto clean trash on startup
+  useEffect(() => {
+    const cleaned = StorageService.clearOldTrash(30);
+    setTrash(cleaned);
+  }, []);
 
   // Active Run State (Restored from activeSession if page reloaded)
   const [isTracking, setIsTracking] = useState(() => initialData ? initialData.isTracking : false);
@@ -283,10 +290,76 @@ export function RunProvider({ children }) {
     } catch (e) {}
   };
 
-  // Delete run record
+  // Move run record to trash (Soft Delete)
   const deleteRunRecord = (id) => {
-    const updated = StorageService.deleteRunRecord(id);
-    setHistory(updated);
+    const result = StorageService.moveToTrash(id);
+    setHistory(result.history);
+    setTrash(result.trash);
+  };
+
+  // Discard run record safely to trash (Used when user chooses "不用儲存" after finishing)
+  const discardRunRecord = (record) => {
+    if (!record) return;
+    const updatedHistory = StorageService.getHistory().filter(item => item.id !== record.id);
+    localStorage.setItem('runtracker_history_v1', JSON.stringify(updatedHistory));
+    setHistory(updatedHistory);
+
+    const updatedTrash = StorageService.addDirectToTrash(record);
+    setTrash(updatedTrash);
+  };
+
+  // Restore run record from trash back to history
+  const restoreRunRecord = (id) => {
+    const result = StorageService.restoreFromTrash(id);
+    setHistory(result.history);
+    setTrash(result.trash);
+  };
+
+  // Permanently delete a single record from trash
+  const permanentDeleteRunRecord = (id) => {
+    const updatedTrash = StorageService.permanentDeleteTrash(id);
+    setTrash(updatedTrash);
+  };
+
+  // Empty all records from trash
+  const emptyTrash = () => {
+    const updatedTrash = StorageService.emptyTrash();
+    setTrash(updatedTrash);
+  };
+
+  // Manually add run record
+  const addManualRunRecord = ({ date, distanceKm, durationSeconds, title, notes }) => {
+    const finalDist = parseFloat(parseFloat(distanceKm).toFixed(2));
+    const finalDuration = parseInt(durationSeconds, 10);
+    const avgPace = formatPace(finalDist, finalDuration);
+    const avgSpeedKmh = parseFloat(formatSpeed(finalDist, finalDuration));
+    const finalCalories = calculateCaloriesBurned(profile.weightKg || 68, finalDuration, avgSpeedKmh || 9.5);
+
+    const completeSplits = ensureCompleteKmSplits({
+      distanceKm: finalDist,
+      durationSeconds: finalDuration,
+      kmSplits: []
+    });
+
+    const runDate = date ? new Date(date) : new Date();
+    const newRecord = {
+      id: `manual-${Date.now()}`,
+      date: runDate.toISOString(),
+      distanceKm: finalDist,
+      durationSeconds: finalDuration,
+      avgPace,
+      avgSpeedKmh,
+      calories: finalCalories,
+      title: title?.trim() || getRunTitle(runDate),
+      notes: notes?.trim() || '',
+      isManual: true,
+      path: [],
+      kmSplits: completeSplits
+    };
+
+    const updatedHistory = StorageService.saveRunRecord(newRecord);
+    setHistory(updatedHistory);
+    return newRecord;
   };
 
   // Screen Wake Lock API to prevent screen timeout during run
@@ -708,7 +781,13 @@ export function RunProvider({ children }) {
         settings,
         updateSettings,
         history,
+        trash,
         deleteRunRecord,
+        discardRunRecord,
+        restoreRunRecord,
+        permanentDeleteRunRecord,
+        emptyTrash,
+        addManualRunRecord,
         isTracking,
         isPaused,
         durationSeconds,

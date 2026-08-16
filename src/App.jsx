@@ -7,6 +7,7 @@ import { RunScreen } from './screens/RunScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { HelpScreen } from './screens/HelpScreen';
 import './styles/main.css';
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
           {activeTab === 'analytics' && <AnalyticsScreen />}
           {activeTab === 'history' && <HistoryScreen />}
           {activeTab === 'settings' && <SettingsScreen />}
+          {activeTab === 'help' && <HelpScreen />}
           <Footer />
         </main>
 
