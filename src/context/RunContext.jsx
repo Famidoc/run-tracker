@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { StorageService } from '../utils/storage';
+import { IDBService } from '../utils/indexedDB';
 import {
   getHaversineDistance,
   calculateCaloriesBurned,
@@ -41,10 +42,33 @@ export function RunProvider({ children }) {
   const [history, setHistory] = useState(() => StorageService.getHistory());
   const [trash, setTrash] = useState(() => StorageService.getTrash());
 
-  // Auto clean trash on startup
+  // Auto clean trash & restore from IndexedDB if needed on startup
   useEffect(() => {
     const cleaned = StorageService.clearOldTrash(30);
     setTrash(cleaned);
+
+    // Background restore from IndexedDB if LocalStorage was cleared
+    IDBService.getAllRuns().then((idbRuns) => {
+      if (idbRuns && idbRuns.length > 0) {
+        setHistory((prev) => {
+          const map = new Map(prev.map((r) => [r.id, r]));
+          let hasNew = false;
+          idbRuns.forEach((r) => {
+            if (!map.has(r.id)) {
+              map.set(r.id, r);
+              hasNew = true;
+            }
+          });
+          if (hasNew) {
+            const merged = Array.from(map.values()).sort(
+              (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+            );
+            return merged;
+          }
+          return prev;
+        });
+      }
+    }).catch((e) => console.warn('IDB startup restore warning:', e));
   }, []);
 
   // Active Run State (Restored from activeSession if page reloaded)
@@ -139,10 +163,12 @@ export function RunProvider({ children }) {
     StorageService.saveSettings(newSettings);
   };
 
-  // Save active session to localStorage so accidental reload (or network switch) resumes seamlessly
+  // Save active session to localStorage (Throttled & compressed to prevent storage exhaustion)
   useEffect(() => {
     if (isTracking) {
       try {
+        // Keep active session small: only latest 80 points
+        const slimPath = pathPoints.slice(-80);
         localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify({
           isTracking,
           isPaused,
@@ -150,7 +176,7 @@ export function RunProvider({ children }) {
           distanceKm,
           currentSpeedKmh,
           calories,
-          pathPoints,
+          pathPoints: slimPath,
           kmSplits,
           targetGoal,
           simulatorMode,
@@ -158,7 +184,9 @@ export function RunProvider({ children }) {
           kmStartTime: kmStartTimeRef.current,
           timestamp: Date.now()
         }));
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Active session save warning:', e);
+      }
     } else {
       localStorage.removeItem(ACTIVE_SESSION_KEY);
     }
@@ -230,43 +258,72 @@ export function RunProvider({ children }) {
     }
   };
 
-  // Stop & Save
+  // Stop & Save (Bulletproof Execution)
   const stopRun = () => {
-    const calculatedPathDist = calculateTotalPathDistance(pathPoints);
-    const finalDist = Math.max(parseFloat(distanceKm.toFixed(2)), calculatedPathDist);
+    try {
+      const calculatedPathDist = calculateTotalPathDistance(pathPoints);
+      const safeDist = typeof distanceKm === 'number' && !isNaN(distanceKm) ? distanceKm : 0;
+      const finalDist = Math.max(parseFloat(safeDist.toFixed(2)), calculatedPathDist);
+      const finalSec = durationSeconds || 0;
 
-    const avgPace = formatPace(finalDist, durationSeconds);
-    const avgSpeedKmh = parseFloat(formatSpeed(finalDist, durationSeconds));
-    const finalCalories = calories > 0 ? calories : calculateCaloriesBurned(profile.weightKg || 68, durationSeconds, avgSpeedKmh || 9.5);
+      const avgPace = formatPace(finalDist, finalSec);
+      const avgSpeedKmh = parseFloat(formatSpeed(finalDist, finalSec)) || 0;
+      const finalCalories = calories > 0 ? calories : calculateCaloriesBurned(profile?.weightKg || 68, finalSec, avgSpeedKmh || 9.5);
 
-    const completeSplits = ensureCompleteKmSplits({
-      distanceKm: finalDist,
-      durationSeconds,
-      kmSplits
-    });
+      const completeSplits = ensureCompleteKmSplits({
+        distanceKm: finalDist,
+        durationSeconds: finalSec,
+        kmSplits
+      });
 
-    const newRecord = {
-      id: `run-${Date.now()}`,
-      date: new Date().toISOString(),
-      distanceKm: finalDist,
-      durationSeconds,
-      avgPace,
-      avgSpeedKmh,
-      calories: finalCalories,
-      title: getRunTitle(new Date()),
-      path: pathPoints,
-      kmSplits: completeSplits
-    };
+      const newRecord = {
+        id: `run-${Date.now()}`,
+        date: new Date().toISOString(),
+        distanceKm: finalDist,
+        durationSeconds: finalSec,
+        avgPace,
+        avgSpeedKmh,
+        calories: finalCalories,
+        title: getRunTitle(new Date()),
+        path: pathPoints || [],
+        kmSplits: completeSplits
+      };
 
-    const updatedHistory = StorageService.saveRunRecord(newRecord);
-    setHistory(updatedHistory);
+      // Guaranteed save with multi-layer fallback
+      const updatedHistory = StorageService.saveRunRecord(newRecord);
+      setHistory(updatedHistory);
 
-    if (settings.voiceCues) {
-      speakText(`跑步完成！本次完成 ${finalDist} 公里，耗時 ${Math.floor(durationSeconds / 60)} 分鐘，消耗 ${finalCalories} 卡路里。`, settings.voiceVolume ?? 1.0);
+      // Safe speech execution
+      if (settings?.voiceCues) {
+        try {
+          speakText(`跑步完成！本次完成 ${finalDist} 公里，耗時 ${Math.floor(finalSec / 60)} 分鐘，消耗 ${finalCalories} 卡路里。`, settings?.voiceVolume ?? 1.0);
+        } catch (ve) {
+          console.warn('Speech warning:', ve);
+        }
+      }
+
+      resetRunState();
+      return newRecord;
+    } catch (e) {
+      console.error('stopRun emergency recovery error:', e);
+      // Emergency Record Creation
+      const emergencyRecord = {
+        id: `run-${Date.now()}`,
+        date: new Date().toISOString(),
+        distanceKm: typeof distanceKm === 'number' ? parseFloat(distanceKm.toFixed(2)) : 0,
+        durationSeconds: durationSeconds || 0,
+        avgPace: formatPace(distanceKm, durationSeconds),
+        avgSpeedKmh: parseFloat(formatSpeed(distanceKm, durationSeconds)) || 0,
+        calories: calories || 0,
+        title: getRunTitle(new Date()),
+        path: [],
+        kmSplits: kmSplits || []
+      };
+      const updatedHistory = StorageService.saveRunRecord(emergencyRecord);
+      setHistory(updatedHistory);
+      resetRunState();
+      return emergencyRecord;
     }
-
-    resetRunState();
-    return newRecord;
   };
 
   const resetRunState = () => {

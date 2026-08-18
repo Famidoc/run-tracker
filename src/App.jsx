@@ -21,7 +21,7 @@ export default function App() {
 
         {/* Dynamic Content Screen */}
         <main className="content-body">
-          {activeTab === 'run' && <RunScreen />}
+          {activeTab === 'run' && <RunScreen setActiveTab={setActiveTab} />}
           {activeTab === 'analytics' && <AnalyticsScreen />}
           {activeTab === 'history' && <HistoryScreen />}
           {activeTab === 'settings' && <SettingsScreen />}

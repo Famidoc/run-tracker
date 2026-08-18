@@ -4,7 +4,7 @@ import { useRunContext } from '../context/RunContext';
 import { formatTime, formatPace, formatSpeed } from '../utils/metrics';
 import { MapViewComponent } from '../components/MapViewComponent';
 
-export function RunScreen() {
+export function RunScreen({ setActiveTab }) {
   const {
     isTracking,
     isPaused,
@@ -35,6 +35,12 @@ export function RunScreen() {
   const [savedSummary, setSavedSummary] = useState(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [defaultSavedSuccess, setDefaultSavedSuccess] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3000);
+  };
 
   // Touch Guard hold timer state
   const [holdProgress, setHoldProgress] = useState(0); // 0 to 100
@@ -753,7 +759,12 @@ export function RunScreen() {
                 }}
                 onClick={() => {
                   setShowDiscardConfirm(false);
+                  const dist = savedSummary.distanceKm;
                   setSavedSummary(null);
+                  showToast(`✅ 已成功儲存 ${dist} KM 跑步紀錄！`);
+                  if (setActiveTab) {
+                    setTimeout(() => setActiveTab('history'), 400);
+                  }
                 }}
               >
                 <Check size={18} />
@@ -761,6 +772,31 @@ export function RunScreen() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastMessage && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(15, 23, 42, 0.95)',
+          border: '1px solid #00E676',
+          color: '#FFF',
+          padding: '10px 20px',
+          borderRadius: '24px',
+          boxShadow: '0 8px 30px rgba(0, 230, 118, 0.3)',
+          zIndex: 400,
+          fontSize: '13px',
+          fontWeight: '700',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <span>{toastMessage}</span>
         </div>
       )}
 
