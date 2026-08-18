@@ -1,4 +1,4 @@
-const CACHE_NAME = 'run-tracker-v3.7-force-update';
+const CACHE_NAME = 'run-tracker-v3.8.2-indexeddb-storage-fix';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

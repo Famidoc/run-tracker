@@ -1,5 +1,6 @@
 import React from 'react';
 import { QRCodeCard } from '../components/QRCodeCard';
+import { APP_VERSION, APP_BUILD_DATE } from '../config/version';
 import {
   PlayCircle,
   Volume2,
@@ -161,7 +162,7 @@ export function HelpScreen() {
 
       {/* 頁尾版本與致謝 */}
       <div className="help-footer-info">
-        <p>Run Tracker v1.0 • Famidoc 專業跑步夥伴</p>
+        <p>RunTracker <span style={{ color: '#00E676', fontWeight: '800' }}>{APP_VERSION}</span> (Build {APP_BUILD_DATE}) • Famidoc 專業跑步夥伴</p>
         <p className="footer-subtext">祝您每次跑步體驗愉快，突破個人紀錄！🏃💨</p>
       </div>
     </div>

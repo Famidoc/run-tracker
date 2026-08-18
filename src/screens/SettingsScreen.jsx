@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { User, Volume2, Radio, Download, Upload, Trash2, Check, ShieldCheck, Target } from 'lucide-react';
+import { User, Volume2, Radio, Download, Upload, Trash2, Check, ShieldCheck, Target, Sparkles, RefreshCw } from 'lucide-react';
 import { useRunContext } from '../context/RunContext';
 import { StorageService } from '../utils/storage';
 import { PRESET_ROUTES } from '../utils/gpsSimulator';
 import { speakText } from '../utils/metrics';
+import { APP_VERSION, APP_BUILD_DATE, APP_RELEASE_NOTES } from '../config/version';
 
 export function SettingsScreen() {
   const { profile, updateProfile, settings, updateSettings, simulatorMode, setSimulatorMode } = useRunContext();
@@ -442,6 +443,44 @@ export function SettingsScreen() {
             <span>重置並清除所有本地數據</span>
           </button>
         </div>
+      </div>
+
+      {/* App Version & Refresh Cache */}
+      <div className="glass-card">
+        <div style={{ fontSize: '15px', fontWeight: '700', color: '#00E676', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Sparkles size={18} />
+          <span>應用程式版本</span>
+        </div>
+
+        <div style={{ background: 'rgba(255, 255, 255, 0.03)', borderRadius: '12px', padding: '12px', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <span style={{ fontSize: '13px', color: '#8E9BAE' }}>目前版本號</span>
+            <span style={{ fontSize: '16px', fontWeight: '800', color: '#00E676' }}>{APP_VERSION}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', color: '#8E9BAE' }}>發布日期</span>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#FFF' }}>{APP_BUILD_DATE}</span>
+          </div>
+        </div>
+
+        <button
+          className="btn-secondary"
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px' }}
+          onClick={() => {
+            if ('caches' in window) {
+              caches.keys().then((names) => {
+                return Promise.all(names.map((name) => caches.delete(name)));
+              }).then(() => {
+                window.location.reload(true);
+              });
+            } else {
+              window.location.reload(true);
+            }
+          }}
+        >
+          <RefreshCw size={15} color="#00E5FF" />
+          <span>檢查更新並清除快取重新載入</span>
+        </button>
       </div>
 
     </div>
