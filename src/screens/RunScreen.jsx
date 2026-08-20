@@ -22,6 +22,10 @@ export function RunScreen({ setActiveTab }) {
     pauseRun,
     resumeRun,
     stopRun,
+    getSummaryDraft,
+    confirmSaveRun,
+    confirmDiscardRun,
+    resumeFromStop,
     deleteRunRecord,
     discardRunRecord,
     simulatorMode,
@@ -66,9 +70,9 @@ export function RunScreen({ setActiveTab }) {
   };
 
   const handleStop = () => {
-    const record = stopRun();
-    if (record) {
-      setSavedSummary(record);
+    const draft = getSummaryDraft ? getSummaryDraft() : stopRun();
+    if (draft) {
+      setSavedSummary(draft);
       setIsOutdoorView(false);
       setIsTouchLocked(false);
     }
@@ -683,7 +687,7 @@ export function RunScreen({ setActiveTab }) {
         )}
       </div>
 
-      {/* Summary Modal after Stop */}
+      {/* Summary Modal after Stop (Includes Resume Running option) */}
       {savedSummary && (
         <div style={{
           position: 'fixed',
@@ -698,10 +702,12 @@ export function RunScreen({ setActiveTab }) {
         }}>
           <div className="glass-card glow-card-green" style={{ width: '100%', maxWidth: '420px', textAlign: 'center' }}>
             <Sparkles size={40} color="#00E676" style={{ margin: '0 auto 12px' }} />
-            <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '4px' }}>跑步完成紀錄！</h2>
-            <p style={{ color: '#8E9BAE', fontSize: '13px', marginBottom: '20px' }}>{savedSummary.title} • {new Date(savedSummary.date).toLocaleDateString()}</p>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '4px' }}>跑步訓練摘要</h2>
+            <p style={{ color: '#8E9BAE', fontSize: '12px', marginBottom: '16px' }}>
+              運動已暫停。您可以點擊「繼續跑」返回運動，或確認儲存紀錄。
+            </p>
 
-            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '16px', marginBottom: '20px' }}>
+            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '16px', marginBottom: '16px' }}>
               <div style={{ fontSize: '40px', fontWeight: '800', color: '#00E676' }}>{savedSummary.distanceKm} <span style={{ fontSize: '16px', color: '#8E9BAE' }}>KM</span></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '12px' }}>
                 <div>
@@ -719,57 +725,92 @@ export function RunScreen({ setActiveTab }) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                style={{
-                  flex: 1,
-                  padding: '14px',
-                  borderRadius: '16px',
-                  background: 'rgba(255, 23, 68, 0.12)',
-                  border: '1.5px solid rgba(255, 23, 68, 0.4)',
-                  color: '#FF1744',
-                  fontWeight: '700',
-                  fontSize: '15px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-                onClick={() => setShowDiscardConfirm(true)}
-              >
-                <Trash2 size={18} />
-                <span>不用儲存</span>
-              </button>
-
+            {/* Action Buttons Stack */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Primary Green Action: Resume Run */}
               <button
                 className="btn-primary"
                 style={{
-                  flex: 1.5,
+                  width: '100%',
                   padding: '14px',
-                  borderRadius: '16px',
-                  fontSize: '15px',
+                  borderRadius: '14px',
+                  fontSize: '16px',
                   fontWeight: '800',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
-                  margin: 0
+                  gap: '8px',
+                  background: 'linear-gradient(135deg, #00E676, #00B0FF)',
+                  color: '#0A0E17',
+                  border: 'none',
+                  boxShadow: '0 4px 20px rgba(0, 230, 118, 0.4)',
+                  cursor: 'pointer'
                 }}
                 onClick={() => {
-                  setShowDiscardConfirm(false);
-                  const dist = savedSummary.distanceKm;
+                  resumeFromStop();
                   setSavedSummary(null);
-                  showToast(`✅ 已成功儲存 ${dist} KM 跑步紀錄！`);
-                  if (setActiveTab) {
-                    setTimeout(() => setActiveTab('history'), 400);
-                  }
+                  showToast('🏃 已恢復跑步，繼續累積里程！');
                 }}
               >
-                <Check size={18} />
-                <span>確認儲存</span>
+                <Play fill="#0A0E17" size={20} />
+                <span>🏃 繼續跑 (返回運動)</span>
               </button>
+
+              {/* Secondary Actions: Confirm Save & Discard */}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 23, 68, 0.12)',
+                    border: '1.5px solid rgba(255, 23, 68, 0.4)',
+                    color: '#FF1744',
+                    fontWeight: '700',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setShowDiscardConfirm(true)}
+                >
+                  <Trash2 size={16} />
+                  <span>不用儲存</span>
+                </button>
+
+                <button
+                  style={{
+                    flex: 1.3,
+                    padding: '12px',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    fontWeight: '800',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    background: 'rgba(0, 229, 255, 0.15)',
+                    border: '1.5px solid #00E5FF',
+                    color: '#00E5FF',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => {
+                    setShowDiscardConfirm(false);
+                    const dist = savedSummary.distanceKm;
+                    confirmSaveRun(savedSummary);
+                    setSavedSummary(null);
+                    showToast(`✅ 已成功儲存 ${dist} KM 跑步紀錄！`);
+                    if (setActiveTab) {
+                      setTimeout(() => setActiveTab('history'), 400);
+                    }
+                  }}
+                >
+                  <Check size={16} />
+                  <span>確認結束並儲存</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -873,13 +914,10 @@ export function RunScreen({ setActiveTab }) {
                   cursor: 'pointer'
                 }}
                 onClick={() => {
-                  if (discardRunRecord) {
-                    discardRunRecord(savedSummary);
-                  } else if (deleteRunRecord) {
-                    deleteRunRecord(savedSummary.id);
-                  }
+                  confirmDiscardRun(savedSummary);
                   setShowDiscardConfirm(false);
                   setSavedSummary(null);
+                  showToast('🗑️ 紀錄已移至最近刪除 (回收站)');
                 }}
               >
                 移至回收站

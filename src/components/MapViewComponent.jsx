@@ -111,44 +111,61 @@ export function MapViewComponent({ pathPoints = [], isTracking = false }) {
     }
   }, [mapStyleKey]);
 
+  const renderedKmCountRef = useRef(0);
+
   // Update Polyline & Markers when pathPoints change
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
 
     const map = mapInstanceRef.current;
-    const latLngs = pathPoints.map(p => [p.lat, p.lng]);
 
+    // Reset markers when session is reset
+    if (pathPoints.length === 0) {
+      clearKmMarkers();
+      renderedKmCountRef.current = 0;
+      if (startMarkerRef.current) {
+        try { map.removeLayer(startMarkerRef.current); } catch (e) {}
+        startMarkerRef.current = null;
+      }
+      if (runnerMarkerRef.current) {
+        try { map.removeLayer(runnerMarkerRef.current); } catch (e) {}
+        runnerMarkerRef.current = null;
+      }
+      if (polylineRef.current) {
+        polylineRef.current.setLatLngs([]);
+      }
+      return;
+    }
+
+    const latLngs = pathPoints.map(p => [p.lat, p.lng]);
     if (polylineRef.current) {
       polylineRef.current.setLatLngs(latLngs);
     }
 
-    // Clear and redraw kilometer milestone markers
-    clearKmMarkers();
+    const currentPoint = pathPoints[pathPoints.length - 1];
+    const startPoint = pathPoints[0];
 
-    if (pathPoints.length > 0) {
-      const currentPoint = pathPoints[pathPoints.length - 1];
-      const startPoint = pathPoints[0];
+    // Start Marker
+    if (!startMarkerRef.current && startPoint) {
+      const startIcon = window.L.divIcon({
+        className: 'custom-start-marker',
+        html: `<div style="background:#00C853; color:#FFF; font-weight:800; font-size:11px; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid #FFF; box-shadow:0 2px 8px rgba(0,0,0,0.4);">S</div>`
+      });
+      startMarkerRef.current = window.L.marker([startPoint.lat, startPoint.lng], { icon: startIcon }).addTo(map);
+    }
 
-      // Start Marker
-      if (!startMarkerRef.current) {
-        const startIcon = window.L.divIcon({
-          className: 'custom-start-marker',
-          html: `<div style="background:#00C853; color:#FFF; font-weight:800; font-size:11px; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid #FFF; box-shadow:0 2px 8px rgba(0,0,0,0.4);">S</div>`
-        });
-        startMarkerRef.current = window.L.marker([startPoint.lat, startPoint.lng], { icon: startIcon }).addTo(map);
-      }
-
-      // Calculate and draw kilometer markers (1k, 2k, 3k, etc.)
-      let runningKm = 0;
-      let nextKmTarget = 1;
-      for (let i = 1; i < pathPoints.length; i++) {
-        const p1 = pathPoints[i - 1];
-        const p2 = pathPoints[i];
-        if (p1 && p2 && typeof p1.lat === 'number' && typeof p2.lat === 'number') {
-          const segDist = getHaversineDistance(p1.lat, p1.lng, p2.lat, p2.lng);
-          runningKm += segDist;
-          while (runningKm >= nextKmTarget) {
-            const kmNum = nextKmTarget;
+    // Calculate incremental kilometer milestone markers
+    let runningKm = 0;
+    let nextKmTarget = 1;
+    for (let i = 1; i < pathPoints.length; i++) {
+      const p1 = pathPoints[i - 1];
+      const p2 = pathPoints[i];
+      if (p1 && p2 && typeof p1.lat === 'number' && typeof p2.lat === 'number') {
+        const segDist = getHaversineDistance(p1.lat, p1.lng, p2.lat, p2.lng);
+        runningKm += segDist;
+        while (runningKm >= nextKmTarget) {
+          const kmNum = nextKmTarget;
+          if (kmNum > renderedKmCountRef.current) {
             const kmIcon = window.L.divIcon({
               className: 'custom-km-marker',
               html: `<div style="
@@ -175,29 +192,32 @@ export function MapViewComponent({ pathPoints = [], isTracking = false }) {
               .addTo(map);
 
             kmMarkersRef.current.push(marker);
-            nextKmTarget += 1;
+            renderedKmCountRef.current = kmNum;
           }
+          nextKmTarget += 1;
         }
       }
+    }
 
-      // Runner Pulse Marker
-      const runnerIcon = window.L.divIcon({
-        className: 'custom-runner-icon',
-        html: `<div class="runner-marker"></div>`
-      });
+    // Runner Pulse Marker
+    const runnerIcon = window.L.divIcon({
+      className: 'custom-runner-icon',
+      html: `<div class="runner-marker"></div>`
+    });
 
-      if (!runnerMarkerRef.current) {
-        runnerMarkerRef.current = window.L.marker([currentPoint.lat, currentPoint.lng], { icon: runnerIcon }).addTo(map);
-      } else {
-        runnerMarkerRef.current.setLatLng([currentPoint.lat, currentPoint.lng]);
-      }
+    if (!runnerMarkerRef.current) {
+      runnerMarkerRef.current = window.L.marker([currentPoint.lat, currentPoint.lng], { icon: runnerIcon }).addTo(map);
+    } else {
+      runnerMarkerRef.current.setLatLng([currentPoint.lat, currentPoint.lng]);
+    }
 
-      // Pan map smoothly to follow runner
-      if (isTracking) {
-        map.panTo([currentPoint.lat, currentPoint.lng], { animate: true, duration: 0.5 });
-      } else if (pathPoints.length > 1) {
+    // Pan map smoothly to follow runner
+    if (isTracking) {
+      map.panTo([currentPoint.lat, currentPoint.lng], { animate: true, duration: 0.3 });
+    } else if (pathPoints.length > 1 && polylineRef.current) {
+      try {
         map.fitBounds(polylineRef.current.getBounds(), { padding: [30, 30] });
-      }
+      } catch (e) {}
     }
   }, [pathPoints, isTracking]);
 
