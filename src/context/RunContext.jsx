@@ -107,6 +107,15 @@ export function RunProvider({ children }) {
   const gracePeriodSecRef = useRef(0);
   const outOfZoneSecondsRef = useRef(0);
 
+  // ── Stale Closure 防護 Refs ──────────────────────────────────────────
+  // Timer useEffect 的 setInterval callback 在建立時會「拍照」捕捉 state。
+  // currentSpeedKmh / distanceKm / goalReached 不在 Timer 的依賴陣列中，
+  // 所以 Timer 中直接讀 state 值永遠是舊的（stale closure）。
+  // 解法：每次 state 更新時同步更新對應 Ref，Timer 改讀 Ref。
+  const currentSpeedKmhRef = useRef(initialData ? (initialData.currentSpeedKmh || 0) : 0);
+  const distanceKmRef = useRef(initialData ? (initialData.distanceKm || 0) : 0);
+  const goalReachedRef = useRef(false);
+
   const setSimulatorMode = (val) => {
     setSimulatorModeState(val);
     updateSettings({
@@ -193,17 +202,51 @@ export function RunProvider({ children }) {
   }, [isTracking, isPaused, durationSeconds, distanceKm, currentSpeedKmh, calories, pathPoints, kmSplits, targetGoal, simulatorMode]);
 
   // Web Audio Background Keep-Alive Audio Loop (Prevents mobile OS browser sleep & tab eviction)
+  // 【修復】原本的 Base64 WAV 只有 2 bytes 音訊資料（約 0.00025 秒），
+  //   iOS/Android 會偵測超短音訊 loop 並停止，導致背景持活失效。
+  //   改用 ArrayBuffer 動態生成標準 1 秒 8kHz mono 8-bit 靜音 WAV，確保 loop 正常。
   const silentAudioRef = useRef(null);
+  const silentAudioUrlRef = useRef(null);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+        const sampleRate = 8000;
+        const numSamples = sampleRate; // 1 秒
+        const buffer = new ArrayBuffer(44 + numSamples);
+        const view = new DataView(buffer);
+        const ws = (offset, str) => {
+          for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+        };
+        ws(0, 'RIFF');
+        view.setUint32(4, 36 + numSamples, true);
+        ws(8, 'WAVE');
+        ws(12, 'fmt ');
+        view.setUint32(16, 16, true);   // chunk size
+        view.setUint16(20, 1, true);    // PCM
+        view.setUint16(22, 1, true);    // mono
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate, true); // byte rate
+        view.setUint16(32, 1, true);    // block align
+        view.setUint16(34, 8, true);    // 8-bit
+        ws(36, 'data');
+        view.setUint32(40, numSamples, true);
+        for (let i = 0; i < numSamples; i++) view.setUint8(44 + i, 128); // 128 = 0dB silence (unsigned 8-bit)
+        const blob = new Blob([buffer], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        silentAudioUrlRef.current = url;
+        const audio = new Audio(url);
         audio.loop = true;
         silentAudioRef.current = audio;
       } catch (e) {
         console.warn('Silent audio init warning:', e);
       }
     }
+    return () => {
+      if (silentAudioUrlRef.current) {
+        URL.revokeObjectURL(silentAudioUrlRef.current);
+      }
+    };
   }, []);
 
   const playBackgroundAudio = () => {
@@ -229,6 +272,11 @@ export function RunProvider({ children }) {
     setPathPoints([]);
     setKmSplits([]);
     setGoalReached(false);
+
+    // 同步重置 Stale Closure 防護 Refs
+    currentSpeedKmhRef.current = 0;
+    distanceKmRef.current = 0;
+    goalReachedRef.current = false;
 
     lastAnnouncedKmRef.current = 0;
     lastPointRef.current = null;
@@ -398,6 +446,10 @@ export function RunProvider({ children }) {
     lowSpeedSecondsRef.current = 0;
     highSpeedSecondsRef.current = 0;
     isAutoPausedBySystemRef.current = false;
+    // 同步重置 Stale Closure 防護 Refs
+    currentSpeedKmhRef.current = 0;
+    distanceKmRef.current = 0;
+    goalReachedRef.current = false;
     pauseBackgroundAudio();
     try {
       localStorage.removeItem(ACTIVE_SESSION_KEY);
@@ -544,6 +596,7 @@ export function RunProvider({ children }) {
   }, [durationSeconds]);
 
   const triggerGoalReached = (textMsg) => {
+    goalReachedRef.current = true; // 同步 Ref，避免 stale closure 重複觸發
     setGoalReached(true);
     if (settings.voiceCues) {
       speakText(textMsg, settings.voiceVolume ?? 1.0);
@@ -562,6 +615,7 @@ export function RunProvider({ children }) {
   const updateMetricsAndGoal = (incDist, speedKmh, currentSec) => {
     setDistanceKm((prevDist) => {
       const nextDist = prevDist + incDist;
+      distanceKmRef.current = nextDist; // 同步 Ref，讓 Timer 能讀到最新距離
 
       // Check 1 KM Voice Cues & Splits
       const currentKmIndex = Math.floor(nextDist);
@@ -593,8 +647,8 @@ export function RunProvider({ children }) {
         }
       }
 
-      // Check Goal Distance
-      if (targetGoal.type === 'distance' && nextDist >= targetGoal.targetValue && !goalReached) {
+      // Check Goal Distance（改用 goalReachedRef.current 避免 stale closure 重複觸發）
+      if (targetGoal.type === 'distance' && nextDist >= targetGoal.targetValue && !goalReachedRef.current) {
         triggerGoalReached(`太棒了！已達成目標里程 ${targetGoal.targetValue} 公里！`);
       }
 
@@ -737,9 +791,10 @@ export function RunProvider({ children }) {
       }
     }
 
-    // 3. Update Speed State
+    // 3. Update Speed State（同步更新 Ref，讓 Timer 能讀到最新速度，解決 stale closure）
     if (computedSpeedKmh > 0) {
       const boundedSpeed = Math.min(24, Math.max(0, computedSpeedKmh));
+      currentSpeedKmhRef.current = boundedSpeed; // ← 關鍵：Timer 讀此 Ref
       setCurrentSpeedKmh(boundedSpeed);
     }
 
@@ -780,9 +835,12 @@ export function RunProvider({ children }) {
       }
 
       // Auto-Pause check when speed is too low (Requires 10 continuous seconds of speed < 2.0 km/h)
-      if (settings.autoPause && !simulatorMode && !isPaused && gracePeriodSecRef.current <= 0 && nextSec >= 25 && distanceKm >= 0.05) {
+      // 【關鍵修復】改讀 Ref 而非 state，避免 stale closure：
+      //   - distanceKmRef.current：GPS 每次更新時即時同步，不受 closure 影響
+      //   - currentSpeedKmhRef.current：同上，永遠是最新速度
+      if (settings.autoPause && !simulatorMode && !isPaused && gracePeriodSecRef.current <= 0 && nextSec >= 25 && distanceKmRef.current >= 0.05) {
         const pauseThreshold = settings.autoPauseSpeedThresholdKmh || 2.0;
-        if (currentSpeedKmh < pauseThreshold) {
+        if (currentSpeedKmhRef.current < pauseThreshold) {
           lowSpeedSecondsRef.current += 1;
           if (lowSpeedSecondsRef.current >= 10) {
             setIsPaused(true);
@@ -800,7 +858,7 @@ export function RunProvider({ children }) {
       }
 
       // Pace Zone Alert check (Debounce 60 seconds & require 15 continuous seconds out-of-zone)
-      if (settings.paceZoneEnabled && settings.voiceCues && !isPaused && distanceKm >= 0.15) {
+      if (settings.paceZoneEnabled && settings.voiceCues && !isPaused && distanceKmRef.current >= 0.15) {
         const paceComp = getPaceComparison();
         const curPaceSec = paceComp.currentPaceSec;
         const minSec = paceToSeconds(settings.targetPaceMin || '05:00');
@@ -827,8 +885,8 @@ export function RunProvider({ children }) {
         }
       }
 
-      // Time Goal check
-      if (targetGoal.type === 'time' && !isPaused && nextSec >= targetGoal.targetValue * 60 && !goalReached) {
+      // Time Goal check（改讀 goalReachedRef 避免 stale closure 重複觸發）
+      if (targetGoal.type === 'time' && !isPaused && nextSec >= targetGoal.targetValue * 60 && !goalReachedRef.current) {
         triggerGoalReached(`目標時間 ${targetGoal.targetValue} 分鐘已達成！`);
       }
     }, 1000);
