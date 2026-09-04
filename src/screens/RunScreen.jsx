@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Play, Pause, Square, Flame, Gauge, Clock, Navigation, Target, Award, Sparkles, Star, Check, Plus, Minus, Zap, Lock, Unlock, Maximize2, Minimize2, ShieldAlert, Trash2 } from 'lucide-react';
+import { Play, Pause, Square, Flame, Gauge, Clock, Navigation, Target, Award, Sparkles, Star, Check, Plus, Minus, Zap, Lock, Unlock, Maximize2, Minimize2, ShieldAlert, Trash2, FileText, Edit3 } from 'lucide-react';
 import { useRunContext } from '../context/RunContext';
 import { formatTime, formatPace, formatSpeed } from '../utils/metrics';
 import { MapViewComponent } from '../components/MapViewComponent';
@@ -37,6 +37,7 @@ export function RunScreen({ setActiveTab }) {
   } = useRunContext();
 
   const [savedSummary, setSavedSummary] = useState(null);
+  const [runNotes, setRunNotes] = useState('');
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [defaultSavedSuccess, setDefaultSavedSuccess] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -700,29 +701,114 @@ export function RunScreen({ setActiveTab }) {
           justifyContent: 'center',
           padding: '20px'
         }}>
-          <div className="glass-card glow-card-green" style={{ width: '100%', maxWidth: '420px', textAlign: 'center' }}>
-            <Sparkles size={40} color="#00E676" style={{ margin: '0 auto 12px' }} />
-            <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '4px' }}>跑步訓練摘要</h2>
-            <p style={{ color: '#8E9BAE', fontSize: '12px', marginBottom: '16px' }}>
+          <div className="glass-card glow-card-green" style={{ width: '100%', maxWidth: '420px', textAlign: 'center', maxHeight: '92vh', overflowY: 'auto' }}>
+            <Sparkles size={36} color="#00E676" style={{ margin: '0 auto 10px' }} />
+            <h2 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '4px' }}>跑步訓練摘要</h2>
+            <p style={{ color: '#8E9BAE', fontSize: '12px', marginBottom: '14px' }}>
               運動已暫停。您可以點擊「繼續跑」返回運動，或確認儲存紀錄。
             </p>
 
-            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '16px', marginBottom: '16px' }}>
-              <div style={{ fontSize: '40px', fontWeight: '800', color: '#00E676' }}>{savedSummary.distanceKm} <span style={{ fontSize: '16px', color: '#8E9BAE' }}>KM</span></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '12px' }}>
+            {/* Core Stats */}
+            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '14px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '38px', fontWeight: '800', color: '#00E676' }}>{savedSummary.distanceKm} <span style={{ fontSize: '16px', color: '#8E9BAE' }}>KM</span></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px' }}>
                 <div>
                   <div style={{ fontSize: '11px', color: '#8E9BAE' }}>總時間</div>
-                  <div style={{ fontSize: '16px', fontWeight: '700' }}>{formatTime(savedSummary.durationSeconds)}</div>
+                  <div style={{ fontSize: '15px', fontWeight: '700' }}>{formatTime(savedSummary.durationSeconds)}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '11px', color: '#8E9BAE' }}>平均配速</div>
-                  <div style={{ fontSize: '16px', fontWeight: '700' }}>{savedSummary.avgPace}</div>
+                  <div style={{ fontSize: '15px', fontWeight: '700' }}>{savedSummary.avgPace}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '11px', color: '#8E9BAE' }}>卡路里</div>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#FF1744' }}>{savedSummary.calories} kcal</div>
+                  <div style={{ fontSize: '15px', fontWeight: '700', color: '#FF1744' }}>{savedSummary.calories} kcal</div>
                 </div>
               </div>
+            </div>
+
+            {/* Run Notes & Mood Section */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(0, 229, 255, 0.25)',
+              borderRadius: '16px',
+              padding: '12px 14px',
+              marginBottom: '14px',
+              textAlign: 'left'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: '#00E5FF', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Edit3 size={13} color="#00E5FF" />
+                  <span>跑步心得與路況備註 (選填)</span>
+                </label>
+                <span style={{ fontSize: '11px', color: '#8E9BAE' }}>{runNotes.length}/200</span>
+              </div>
+
+              {/* Quick Preset Tags */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                {[
+                  '🌧️ 途中下雨',
+                  '☀️ 天氣悶熱',
+                  '💨 逆風吃力',
+                  '💪 狀況極佳',
+                  '🥵 感覺疲憊',
+                  '🦵 雙腿緊繃',
+                  '🏃 節奏順暢',
+                  '🌙 夜跑舒服'
+                ].map((tag) => {
+                  const isSelected = runNotes.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        setRunNotes((prev) => {
+                          if (!prev.trim()) return tag;
+                          if (prev.includes(tag)) {
+                            // 再次點擊若已存在則移除
+                            return prev.replace(new RegExp(`；?${tag}；?`), '；').replace(/^；|；$/g, '').trim();
+                          }
+                          return `${prev}；${tag}`;
+                        });
+                      }}
+                      style={{
+                        background: isSelected ? 'rgba(0, 229, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                        border: isSelected ? '1px solid #00E5FF' : '1px solid rgba(255, 255, 255, 0.12)',
+                        color: isSelected ? '#00E5FF' : '#B0BEC5',
+                        borderRadius: '14px',
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Textarea Input */}
+              <textarea
+                rows={2}
+                maxLength={200}
+                value={runNotes}
+                onChange={(e) => setRunNotes(e.target.value)}
+                placeholder="寫下今天的心得或路況（如：跑到一半下雨、今天很熱濕度大跑起來很累...）"
+                style={{
+                  width: '100%',
+                  background: 'rgba(10, 14, 23, 0.65)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '10px',
+                  padding: '8px 10px',
+                  color: '#FFF',
+                  fontSize: '13px',
+                  lineHeight: '1.4',
+                  resize: 'none',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
             </div>
 
             {/* Action Buttons Stack */}
@@ -732,9 +818,9 @@ export function RunScreen({ setActiveTab }) {
                 className="btn-primary"
                 style={{
                   width: '100%',
-                  padding: '14px',
+                  padding: '13px',
                   borderRadius: '14px',
-                  fontSize: '16px',
+                  fontSize: '15px',
                   fontWeight: '800',
                   display: 'flex',
                   alignItems: 'center',
@@ -752,7 +838,7 @@ export function RunScreen({ setActiveTab }) {
                   showToast('🏃 已恢復跑步，繼續累積里程！');
                 }}
               >
-                <Play fill="#0A0E17" size={20} />
+                <Play fill="#0A0E17" size={18} />
                 <span>🏃 繼續跑 (返回運動)</span>
               </button>
 
@@ -799,8 +885,13 @@ export function RunScreen({ setActiveTab }) {
                   onClick={() => {
                     setShowDiscardConfirm(false);
                     const dist = savedSummary.distanceKm;
-                    confirmSaveRun(savedSummary);
+                    const finalRecord = {
+                      ...savedSummary,
+                      notes: runNotes.trim()
+                    };
+                    confirmSaveRun(finalRecord);
                     setSavedSummary(null);
+                    setRunNotes('');
                     showToast(`✅ 已成功儲存 ${dist} KM 跑步紀錄！`);
                     if (setActiveTab) {
                       setTimeout(() => setActiveTab('history'), 400);
@@ -914,9 +1005,13 @@ export function RunScreen({ setActiveTab }) {
                   cursor: 'pointer'
                 }}
                 onClick={() => {
-                  confirmDiscardRun(savedSummary);
+                  confirmDiscardRun({
+                    ...savedSummary,
+                    notes: runNotes.trim()
+                  });
                   setShowDiscardConfirm(false);
                   setSavedSummary(null);
+                  setRunNotes('');
                   showToast('🗑️ 紀錄已移至最近刪除 (回收站)');
                 }}
               >

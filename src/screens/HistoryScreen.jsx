@@ -14,7 +14,8 @@ import {
   Check,
   FileText,
   ShieldCheck,
-  X
+  X,
+  Edit3
 } from 'lucide-react';
 import { useRunContext } from '../context/RunContext';
 import {
@@ -38,10 +39,13 @@ export function HistoryScreen() {
     permanentDeleteRunRecord,
     emptyTrash,
     addManualRunRecord,
+    updateRunRecord,
     profile
   } = useRunContext();
 
   const [selectedRun, setSelectedRun] = useState(null);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [editingNotesText, setEditingNotesText] = useState('');
   const [showManualModal, setShowManualModal] = useState(false);
   const [showTrashModal, setShowTrashModal] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -114,6 +118,12 @@ export function HistoryScreen() {
     });
 
     setShowManualModal(false);
+    setManualTitle('');
+    setManualNotes('');
+    setManualDistance('');
+    setManualHours('');
+    setManualMinutes('');
+    setManualSeconds('');
     showToast(`✅ 成功補登 ${numDist} KM 跑步紀錄！`);
   };
 
@@ -219,7 +229,11 @@ export function HistoryScreen() {
               <div
                 key={record.id}
                 className="glass-card"
-                onClick={() => setSelectedRun(record)}
+                onClick={() => {
+                  setSelectedRun(record);
+                  setIsEditingNotes(false);
+                  setEditingNotesText(record.notes || '');
+                }}
                 style={{
                   cursor: 'pointer',
                   transition: 'transform 0.2s ease, border-color 0.2s ease',
@@ -300,6 +314,28 @@ export function HistoryScreen() {
                     <div style={{ fontSize: '13px', fontWeight: '700', color: '#FF1744' }}>{cal} kcal</div>
                   </div>
                 </div>
+
+                {/* Notes Preview if available */}
+                {record.notes && (
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '12px',
+                    color: '#00E5FF',
+                    background: 'rgba(0, 229, 255, 0.05)',
+                    border: '1px solid rgba(0, 229, 255, 0.15)',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    overflow: 'hidden'
+                  }}>
+                    <span style={{ flexShrink: 0 }}>📝</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#B0BEC5' }}>
+                      {record.notes}
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -505,6 +541,65 @@ export function HistoryScreen() {
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     color: '#FFF',
                     fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Notes & Quick Tags */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '12px', color: '#8E9BAE', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Edit3 size={13} color="#00E5FF" />
+                    <span>心得與備註 (選填)</span>
+                  </label>
+                  <span style={{ fontSize: '11px', color: '#8E9BAE' }}>{manualNotes.length}/200</span>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                  {['🌧️ 途中下雨', '☀️ 天氣悶熱', '💨 逆風吃力', '💪 狀況極佳', '🥵 感覺疲憊', '🏃 節奏順暢'].map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        setManualNotes((prev) => {
+                          if (!prev.trim()) return tag;
+                          if (prev.includes(tag)) return prev;
+                          return `${prev}；${tag}`;
+                        });
+                      }}
+                      style={{
+                        background: manualNotes.includes(tag) ? 'rgba(0, 229, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                        border: manualNotes.includes(tag) ? '1px solid #00E5FF' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: manualNotes.includes(tag) ? '#00E5FF' : '#B0BEC5',
+                        borderRadius: '12px',
+                        padding: '2px 8px',
+                        fontSize: '11px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  rows={2}
+                  maxLength={200}
+                  placeholder="例: 今天很熱，濕度又大，跑起來很累..."
+                  value={manualNotes}
+                  onChange={(e) => setManualNotes(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: '10px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: '#FFF',
+                    fontSize: '13px',
+                    lineHeight: '1.4',
+                    resize: 'none',
+                    outline: 'none',
                     boxSizing: 'border-box'
                   }}
                 />
@@ -759,11 +854,6 @@ export function HistoryScreen() {
               }}>
                 <FileText size={28} color="#8E9BAE" style={{ margin: '0 auto 6px' }} />
                 <span>此紀錄為手動補登（無 GPS 地圖軌跡）</span>
-                {selectedRun.notes && (
-                  <div style={{ marginTop: '8px', color: '#FFF', fontSize: '13px', background: 'rgba(255,255,255,0.04)', padding: '8px 12px', borderRadius: '8px' }}>
-                    備註：{selectedRun.notes}
-                  </div>
-                )}
               </div>
             )}
 
@@ -781,6 +871,106 @@ export function HistoryScreen() {
                 <div style={{ fontSize: '11px', color: '#8E9BAE' }}>消耗卡路里</div>
                 <div style={{ fontSize: '18px', fontWeight: '800', color: '#FF1744' }}>{modalStats.cal} kcal</div>
               </div>
+            </div>
+
+            {/* Run Notes & Thoughts Section */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(0, 229, 255, 0.25)',
+              borderRadius: '14px',
+              padding: '12px 14px',
+              marginBottom: '16px',
+              textAlign: 'left'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isEditingNotes ? '8px' : '4px' }}>
+                <div style={{ fontSize: '12px', color: '#00E5FF', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <Edit3 size={13} color="#00E5FF" />
+                  <span>跑步心得與備註</span>
+                </div>
+                {!isEditingNotes && (
+                  <button
+                    onClick={() => {
+                      setIsEditingNotes(true);
+                      setEditingNotesText(selectedRun.notes || '');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#8E9BAE',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3px'
+                    }}
+                  >
+                    <span>✏️ 編輯</span>
+                  </button>
+                )}
+              </div>
+
+              {isEditingNotes ? (
+                <div>
+                  <textarea
+                    rows={2}
+                    maxLength={200}
+                    value={editingNotesText}
+                    onChange={(e) => setEditingNotesText(e.target.value)}
+                    placeholder="寫下今天的心得或路況..."
+                    style={{
+                      width: '100%',
+                      background: 'rgba(10, 14, 23, 0.65)',
+                      border: '1px solid rgba(0, 229, 255, 0.4)',
+                      borderRadius: '8px',
+                      padding: '8px 10px',
+                      color: '#FFF',
+                      fontSize: '13px',
+                      lineHeight: '1.4',
+                      resize: 'none',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+                    <button
+                      className="btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '6px', cursor: 'pointer' }}
+                      onClick={() => setIsEditingNotes(false)}
+                    >
+                      取消
+                    </button>
+                    <button
+                      className="btn-primary"
+                      style={{ padding: '4px 12px', fontSize: '11px', borderRadius: '6px', cursor: 'pointer', margin: 0 }}
+                      onClick={() => {
+                        const updated = {
+                          ...selectedRun,
+                          notes: editingNotesText.trim()
+                        };
+                        updateRunRecord(updated);
+                        setSelectedRun(updated);
+                        setIsEditingNotes(false);
+                        showToast('✅ 心得備註已儲存更新！');
+                      }}
+                    >
+                      儲存心得
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  fontSize: '13px',
+                  color: selectedRun.notes ? '#E0E0E0' : '#8E9BAE',
+                  lineHeight: '1.5',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  fontStyle: selectedRun.notes ? 'normal' : 'italic'
+                }}>
+                  {selectedRun.notes || '尚未填寫任何心得或備註，可點擊右上角「編輯」填寫。'}
+                </div>
+              )}
             </div>
 
             {/* KM Splits Table */}

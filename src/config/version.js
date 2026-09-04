@@ -1,6 +1,7 @@
-export const APP_VERSION = 'v3.8.3';
-export const APP_BUILD_DATE = '2026-08-20';
+export const APP_VERSION = 'v3.9.0';
+export const APP_BUILD_DATE = '2026-09-04';
 export const APP_RELEASE_NOTES = [
+  '新增 跑步結束儲存時支援填寫心得與路況備註，提供天氣與體感快捷標籤，完整記錄每次跑步感受',
   '新增 結束跑步摘要【🏃 繼續跑 (返回運動)】按鈕，支援隨時取消結束並無縫恢復計時與距離累加',
   '重大修復 GPS 批次推送 (Burst) 與訊號跳動問題，導入 30 秒滑動中位數濾波，徹底解決 7 分速誤報跑太快或掉速',
   '重大修復 自動暫停死鎖 Bug：暫停狀態下持續偵測移動速度，恢復跑步時 3 秒自動解除暫停並語音提示',

@@ -364,8 +364,17 @@ export function RunProvider({ children }) {
       calories: finalCalories,
       title: getRunTitle(new Date()),
       path: pathPoints || [],
-      kmSplits: completeSplits
+      kmSplits: completeSplits,
+      notes: ''
     };
+  };
+
+  // Update an existing run record (e.g. notes or title)
+  const updateRunRecord = (updatedRecord) => {
+    if (!updatedRecord || !updatedRecord.id) return;
+    const updatedHistory = StorageService.saveRunRecord(updatedRecord);
+    setHistory(updatedHistory);
+    return updatedHistory;
   };
 
   // Confirm Save Run (Officially saves to History/IDB and clears state)
@@ -991,6 +1000,7 @@ export function RunProvider({ children }) {
         pauseRun,
         resumeRun,
         stopRun,
+        updateRunRecord,
         getSummaryDraft,
         confirmSaveRun,
         confirmDiscardRun,
