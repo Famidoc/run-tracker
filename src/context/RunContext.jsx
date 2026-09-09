@@ -15,6 +15,7 @@ import {
   calculatePersonalRecords
 } from '../utils/metrics';
 import { GPSSimulator } from '../utils/gpsSimulator';
+import { fetchCurrentWeatherAndAirQuality, formatWeatherNotes } from '../utils/weatherService';
 
 const RunContext = createContext();
 
@@ -98,6 +99,11 @@ export function RunProvider({ children }) {
   // UI Interactive States (Touch Guard & Outdoor High-Contrast 4-Data Mode)
   const [isTouchLocked, setIsTouchLocked] = useState(false);
   const [isOutdoorView, setIsOutdoorView] = useState(false);
+
+  // Real-time Weather & Air Quality State
+  const [currentWeather, setCurrentWeather] = useState(null);
+  const [isFetchingWeather, setIsFetchingWeather] = useState(false);
+  const lastWeatherFetchRef = useRef({ time: 0, lat: 0, lng: 0 });
 
   // Auto-Pause & Pace Zone Warning Refs
   const lowSpeedSecondsRef = useRef(0);
@@ -298,9 +304,30 @@ export function RunProvider({ children }) {
       speakText('跑步開始，加油！', settings.voiceVolume ?? 1.0);
     }
 
+    // Reset Weather & Air Quality
+    setCurrentWeather(null);
+    lastWeatherFetchRef.current = { time: 0, lat: 0, lng: 0 };
+
     // Initialize Simulator or Real Geolocation
     if (simulatorMode) {
       simulatorInstanceRef.current = new GPSSimulator(settings.presetRoute || 'daan');
+    } else if (typeof window !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          if (latitude && longitude && lastWeatherFetchRef.current.time === 0) {
+            lastWeatherFetchRef.current = { time: Date.now(), lat: latitude, lng: longitude };
+            setIsFetchingWeather(true);
+            fetchCurrentWeatherAndAirQuality(latitude, longitude)
+              .then((wData) => {
+                if (wData) setCurrentWeather(wData);
+              })
+              .finally(() => setIsFetchingWeather(false));
+          }
+        },
+        () => {},
+        { timeout: 4000, maximumAge: 60000 }
+      );
     }
   };
 
@@ -354,6 +381,8 @@ export function RunProvider({ children }) {
       kmSplits
     });
 
+    const weatherNotes = formatWeatherNotes(currentWeather);
+
     return {
       id: `run-${Date.now()}`,
       date: new Date().toISOString(),
@@ -365,7 +394,8 @@ export function RunProvider({ children }) {
       title: getRunTitle(new Date()),
       path: pathPoints || [],
       kmSplits: completeSplits,
-      notes: ''
+      weather: currentWeather,
+      notes: weatherNotes || ''
     };
   };
 
@@ -677,6 +707,23 @@ export function RunProvider({ children }) {
   const processLocationPoint = (lat, lng, rawSpeedMs = null, accuracy = null) => {
     if (!isTracking) return;
 
+    // Auto fetch real-time weather & PM2.5 when position is obtained
+    const now = Date.now();
+    const timeSinceLastWeather = now - lastWeatherFetchRef.current.time;
+    const isFirstFetch = lastWeatherFetchRef.current.time === 0;
+    const isStale = timeSinceLastWeather > 20 * 60 * 1000; // 20 mins cache
+    if ((isFirstFetch || isStale) && lat && lng) {
+      lastWeatherFetchRef.current = { time: now, lat, lng };
+      setIsFetchingWeather(true);
+      fetchCurrentWeatherAndAirQuality(lat, lng)
+        .then((wData) => {
+          if (wData) {
+            setCurrentWeather(wData);
+          }
+        })
+        .finally(() => setIsFetchingWeather(false));
+    }
+
     const currentSec = durationSecRef.current;
     let incDist = 0;
     let computedSpeedKmh = 0;
@@ -963,6 +1010,16 @@ export function RunProvider({ children }) {
     };
   };
 
+  const refreshWeather = async () => {
+    if (pathPoints && pathPoints.length > 0) {
+      const lastPt = pathPoints[pathPoints.length - 1];
+      setIsFetchingWeather(true);
+      const data = await fetchCurrentWeatherAndAirQuality(lastPt.lat, lastPt.lng);
+      if (data) setCurrentWeather(data);
+      setIsFetchingWeather(false);
+    }
+  };
+
   return (
     <RunContext.Provider
       value={{
@@ -1008,7 +1065,10 @@ export function RunProvider({ children }) {
         getPaceComparison,
         generateGPX,
         downloadFile,
-        calculatePersonalRecords
+        calculatePersonalRecords,
+        currentWeather,
+        isFetchingWeather,
+        refreshWeather
       }}
     >
       {children}

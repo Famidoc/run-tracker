@@ -15,7 +15,10 @@ import {
   FileText,
   ShieldCheck,
   X,
-  Edit3
+  Edit3,
+  Thermometer,
+  Droplets,
+  Wind
 } from 'lucide-react';
 import { useRunContext } from '../context/RunContext';
 import {
@@ -872,6 +875,51 @@ export function HistoryScreen() {
                 <div style={{ fontSize: '18px', fontWeight: '800', color: '#FF1744' }}>{modalStats.cal} kcal</div>
               </div>
             </div>
+
+            {/* Weather & Air Quality Badge */}
+            {selectedRun.weather && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 14px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '12px',
+                marginBottom: '16px',
+                fontSize: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#FFB74D' }}>
+                  <Thermometer size={14} color="#FFB74D" />
+                  <span style={{ fontWeight: '700' }}>{selectedRun.weather.temp !== null ? `${selectedRun.weather.temp}°C` : '--'}</span>
+                  <span style={{ fontSize: '10px', color: '#8E9BAE' }}>氣溫</span>
+                </div>
+                <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.1)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#4FC3F7' }}>
+                  <Droplets size={14} color="#4FC3F7" />
+                  <span style={{ fontWeight: '700' }}>{selectedRun.weather.humidity !== null ? `${selectedRun.weather.humidity}%` : '--'}</span>
+                  <span style={{ fontSize: '10px', color: '#8E9BAE' }}>濕度</span>
+                </div>
+                <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.1)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: selectedRun.weather.pm25Info?.color || '#00E676' }}>
+                  <Wind size={14} color={selectedRun.weather.pm25Info?.color || '#00E676'} />
+                  <span style={{ fontWeight: '700' }}>{selectedRun.weather.pm25 !== null ? `${selectedRun.weather.pm25}` : '--'}</span>
+                  <span style={{ fontSize: '10px', color: '#8E9BAE' }}>μg</span>
+                  {selectedRun.weather.pm25Info?.label && (
+                    <span style={{
+                      fontSize: '9px',
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                      background: `${selectedRun.weather.pm25Info.color}22`,
+                      color: selectedRun.weather.pm25Info.color,
+                      fontWeight: '800'
+                    }}>
+                      {selectedRun.weather.pm25Info.label}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Run Notes & Thoughts Section */}
             <div style={{

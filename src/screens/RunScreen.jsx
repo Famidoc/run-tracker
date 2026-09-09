@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Play, Pause, Square, Flame, Gauge, Clock, Navigation, Target, Award, Sparkles, Star, Check, Plus, Minus, Zap, Lock, Unlock, Maximize2, Minimize2, ShieldAlert, Trash2, FileText, Edit3 } from 'lucide-react';
+import { Play, Pause, Square, Flame, Gauge, Clock, Navigation, Target, Award, Sparkles, Star, Check, Plus, Minus, Zap, Lock, Unlock, Maximize2, Minimize2, ShieldAlert, Trash2, FileText, Edit3, CloudSun, Droplets, Wind, Thermometer } from 'lucide-react';
 import { useRunContext } from '../context/RunContext';
 import { formatTime, formatPace, formatSpeed } from '../utils/metrics';
 import { MapViewComponent } from '../components/MapViewComponent';
@@ -33,7 +33,10 @@ export function RunScreen({ setActiveTab }) {
     isTouchLocked,
     setIsTouchLocked,
     isOutdoorView,
-    setIsOutdoorView
+    setIsOutdoorView,
+    currentWeather,
+    isFetchingWeather,
+    refreshWeather
   } = useRunContext();
 
   const [savedSummary, setSavedSummary] = useState(null);
@@ -74,6 +77,7 @@ export function RunScreen({ setActiveTab }) {
     const draft = getSummaryDraft ? getSummaryDraft() : stopRun();
     if (draft) {
       setSavedSummary(draft);
+      setRunNotes(draft.notes || '');
       setIsOutdoorView(false);
       setIsTouchLocked(false);
     }
@@ -201,6 +205,28 @@ export function RunScreen({ setActiveTab }) {
               </button>
             </div>
           </div>
+
+          {/* Outdoor Weather & Air Quality Status */}
+          {currentWeather && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              padding: '6px 12px',
+              background: 'rgba(255,255,255,0.05)',
+              borderRadius: '20px',
+              margin: '10px 0 4px',
+              fontSize: '12px',
+              fontWeight: '700'
+            }}>
+              <span style={{ color: '#FFB74D' }}>🌡️ {currentWeather.temp !== null ? `${currentWeather.temp}°C` : '--'}</span>
+              <span style={{ color: '#4FC3F7' }}>💧 {currentWeather.humidity !== null ? `${currentWeather.humidity}%` : '--'}</span>
+              <span style={{ color: currentWeather.pm25Info?.color || '#00E676' }}>
+                🍃 PM2.5: {currentWeather.pm25 !== null ? `${currentWeather.pm25}μg` : '--'} ({currentWeather.pm25Info?.label || '良好'})
+              </span>
+            </div>
+          )}
 
           {/* 4 Large Metrics Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', margin: '20px 0' }}>
@@ -657,6 +683,62 @@ export function RunScreen({ setActiveTab }) {
           </div>
         </div>
 
+        {/* Real-time Weather & Air Quality Bar (Active during run) */}
+        {isTracking && (
+          <div style={{
+            marginTop: '12px',
+            padding: '8px 12px',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '12px'
+          }}>
+            {currentWeather ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#FFB74D' }}>
+                  <Thermometer size={14} color="#FFB74D" />
+                  <span style={{ fontWeight: '700' }}>{currentWeather.temp !== null ? `${currentWeather.temp}°C` : '--'}</span>
+                  <span style={{ fontSize: '10px', color: '#8E9BAE' }}>氣溫</span>
+                </div>
+                <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.1)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#4FC3F7' }}>
+                  <Droplets size={14} color="#4FC3F7" />
+                  <span style={{ fontWeight: '700' }}>{currentWeather.humidity !== null ? `${currentWeather.humidity}%` : '--'}</span>
+                  <span style={{ fontSize: '10px', color: '#8E9BAE' }}>濕度</span>
+                </div>
+                <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.1)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: currentWeather.pm25Info?.color || '#00E676' }}>
+                  <Wind size={14} color={currentWeather.pm25Info?.color || '#00E676'} />
+                  <span style={{ fontWeight: '700' }}>
+                    {currentWeather.pm25 !== null ? `${currentWeather.pm25}` : '--'}
+                  </span>
+                  <span style={{ fontSize: '10px', color: '#8E9BAE' }}>μg</span>
+                  {currentWeather.pm25Info?.label && (
+                    <span style={{
+                      fontSize: '9px',
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                      background: `${currentWeather.pm25Info.color}22`,
+                      color: currentWeather.pm25Info.color,
+                      fontWeight: '800'
+                    }}>
+                      {currentWeather.pm25Info.label}
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div style={{ width: '100%', textAlign: 'center', color: '#8E9BAE', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <CloudSun size={14} color="#00E5FF" />
+                <span>{isFetchingWeather ? '正在抓取當前定位氣溫、濕度與空氣品質...' : '定位成功後將自動載入即時氣溫、濕度與 PM2.5'}</span>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* Running Controls */}
@@ -741,7 +823,14 @@ export function RunScreen({ setActiveTab }) {
                   <Edit3 size={13} color="#00E5FF" />
                   <span>跑步心得與路況備註 (選填)</span>
                 </label>
-                <span style={{ fontSize: '11px', color: '#8E9BAE' }}>{runNotes.length}/200</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {savedSummary.weather && (
+                    <span style={{ fontSize: '10px', background: 'rgba(0, 230, 118, 0.15)', color: '#00E676', padding: '1px 6px', borderRadius: '6px', fontWeight: '700' }}>
+                      🌤️ 已自動帶入當時氣象
+                    </span>
+                  )}
+                  <span style={{ fontSize: '11px', color: '#8E9BAE' }}>{runNotes.length}/200</span>
+                </div>
               </div>
 
               {/* Quick Preset Tags */}
