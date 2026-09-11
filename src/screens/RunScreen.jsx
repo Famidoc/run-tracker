@@ -209,22 +209,77 @@ export function RunScreen({ setActiveTab }) {
           {/* Outdoor Weather & Air Quality Status */}
           {currentWeather && (
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              padding: '6px 12px',
-              background: 'rgba(255,255,255,0.05)',
-              borderRadius: '20px',
-              margin: '10px 0 4px',
-              fontSize: '12px',
-              fontWeight: '700'
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '10px',
+              margin: '14px 0 8px',
             }}>
-              <span style={{ color: '#FFB74D' }}>🌡️ {currentWeather.temp !== null ? `${currentWeather.temp}°C` : '--'}</span>
-              <span style={{ color: '#4FC3F7' }}>💧 {currentWeather.humidity !== null ? `${currentWeather.humidity}%` : '--'}</span>
-              <span style={{ color: currentWeather.pm25Info?.color || '#00E676' }}>
-                🍃 PM2.5: {currentWeather.pm25 !== null ? `${currentWeather.pm25}μg` : '--'} ({currentWeather.pm25Info?.label || '良好'})
-              </span>
+              {/* 氣溫 */}
+              <div style={{
+                background: '#0D1424',
+                border: '1.5px solid rgba(255, 183, 77, 0.4)',
+                borderRadius: '16px',
+                padding: '10px 4px',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 0
+              }}>
+                <div style={{ fontSize: '13px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px' }}>
+                  氣溫
+                </div>
+                <div style={{ fontSize: '21px', fontWeight: '900', color: '#FFB74D', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
+                  <span style={{ fontSize: '17px' }}>🌡️</span>
+                  <span>{currentWeather.temp !== null ? `${currentWeather.temp}°C` : '--'}</span>
+                </div>
+              </div>
+
+              {/* 濕度 */}
+              <div style={{
+                background: '#0D1424',
+                border: '1.5px solid rgba(79, 195, 247, 0.4)',
+                borderRadius: '16px',
+                padding: '10px 4px',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 0
+              }}>
+                <div style={{ fontSize: '13px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px' }}>
+                  濕度
+                </div>
+                <div style={{ fontSize: '21px', fontWeight: '900', color: '#4FC3F7', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
+                  <span style={{ fontSize: '17px' }}>💧</span>
+                  <span>{currentWeather.humidity !== null ? `${currentWeather.humidity}%` : '--'}</span>
+                </div>
+              </div>
+
+              {/* PM2.5 */}
+              <div style={{
+                background: '#0D1424',
+                border: `1.5px solid ${currentWeather.pm25Info?.color || '#00E676'}66`,
+                borderRadius: '16px',
+                padding: '10px 4px',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 0
+              }}>
+                <div style={{ fontSize: '12px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                  PM2.5 ({currentWeather.pm25Info?.label || '良好'})
+                </div>
+                <div style={{ fontSize: '21px', fontWeight: '900', color: currentWeather.pm25Info?.color || '#00E676', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
+                  <span style={{ fontSize: '17px' }}>🍃</span>
+                  <span>{currentWeather.pm25 !== null ? currentWeather.pm25 : '--'}</span>
+                  <span style={{ fontSize: '12px', fontWeight: '700', opacity: 0.85 }}>µg</span>
+                </div>
+              </div>
             </div>
           )}
 
