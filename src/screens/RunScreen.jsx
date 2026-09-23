@@ -1,8 +1,147 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Square, Flame, Gauge, Clock, Navigation, Target, Award, Sparkles, Star, Check, Plus, Minus, Zap, Lock, Unlock, Maximize2, Minimize2, ShieldAlert, Trash2, FileText, Edit3, CloudSun, Droplets, Wind, Thermometer } from 'lucide-react';
 import { useRunContext } from '../context/RunContext';
 import { formatTime, formatPace, formatSpeed } from '../utils/metrics';
 import { MapViewComponent } from '../components/MapViewComponent';
+
+// 【防誤觸保護】長按暫停按鈕組件（需長按 0.95 秒觸發，徹底防止口袋短褲布料摩擦與汗水誤觸）
+function LongPressPauseButton({ onPause, isOutdoor = false }) {
+  const [progress, setProgress] = useState(0);
+  const [isPressing, setIsPressing] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const pressTimerRef = useRef(null);
+  const progressIntervalRef = useRef(null);
+  const toastTimeoutRef = useRef(null);
+
+  const startPress = (e) => {
+    setIsPressing(true);
+    setProgress(0);
+
+    const startTime = Date.now();
+    const duration = 950; // 0.95 秒長按門檻
+
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    progressIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(100, Math.round((elapsed / duration) * 100));
+      setProgress(pct);
+    }, 25);
+
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    pressTimerRef.current = setTimeout(() => {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      setProgress(0);
+      setIsPressing(false);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate([60, 40, 60]); } catch (err) {}
+      }
+      onPause();
+    }, duration);
+  };
+
+  const cancelPress = () => {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+
+    // 若短按即放開（小於觸發時間），提示需要長按以防誤觸
+    if (isPressing && progress > 0 && progress < 90) {
+      setShowToast(true);
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = setTimeout(() => setShowToast(false), 2200);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(30); } catch (err) {}
+      }
+    }
+
+    setIsPressing(false);
+    setProgress(0);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
+
+  return (
+    <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
+      {showToast && (
+        <div style={{
+          position: 'absolute',
+          bottom: '115%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(255, 214, 0, 0.96)',
+          color: '#0A0E17',
+          padding: '6px 14px',
+          borderRadius: '20px',
+          fontSize: '12px',
+          fontWeight: '800',
+          whiteSpace: 'nowrap',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+          pointerEvents: 'none',
+          zIndex: 99,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px'
+        }}>
+          <span>🛡️ 防誤觸：請長按 1 秒暫停</span>
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="btn-secondary"
+        style={{
+          flex: 1,
+          width: '100%',
+          padding: isOutdoor ? '14px' : '16px',
+          fontSize: isOutdoor ? '16px' : '18px',
+          position: 'relative',
+          overflow: 'hidden',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          touchAction: 'manipulation',
+          borderColor: isPressing ? '#FFD600' : undefined
+        }}
+        onMouseDown={startPress}
+        onMouseUp={cancelPress}
+        onMouseLeave={cancelPress}
+        onTouchStart={startPress}
+        onTouchEnd={cancelPress}
+        onTouchCancel={cancelPress}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        {/* 長按進度條動畫背景 */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: `${progress}%`,
+            background: 'linear-gradient(90deg, rgba(255, 214, 0, 0.25), rgba(255, 214, 0, 0.5))',
+            pointerEvents: 'none',
+            transition: progress === 0 ? 'width 0.2s ease-out' : 'none'
+          }}
+        />
+
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', zIndex: 1 }}>
+          <Pause size={isOutdoor ? 20 : 24} color="#FFD600" />
+          <span>{isPressing ? '按住以暫停...' : '長按暫停'}</span>
+        </div>
+      </button>
+    </div>
+  );
+}
 
 export function RunScreen({ setActiveTab }) {
   const {
@@ -348,10 +487,7 @@ export function RunScreen({ setActiveTab }) {
                 <span>繼續</span>
               </button>
             ) : (
-              <button className="btn-secondary" style={{ flex: 1, padding: '16px', fontSize: '18px' }} onClick={pauseRun}>
-                <Pause size={24} color="#FFD600" />
-                <span>暫停</span>
-              </button>
+              <LongPressPauseButton onPause={pauseRun} />
             )}
 
             <button className="btn-danger" style={{ flex: 1, padding: '16px', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={handleStop}>
@@ -811,10 +947,7 @@ export function RunScreen({ setActiveTab }) {
                 <span>繼續</span>
               </button>
             ) : (
-              <button className="btn-secondary" style={{ flex: 1 }} onClick={pauseRun}>
-                <Pause size={20} color="#FFD600" />
-                <span>暫停</span>
-              </button>
+              <LongPressPauseButton onPause={pauseRun} isOutdoor />
             )}
 
             <button className="btn-danger" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={handleStop}>

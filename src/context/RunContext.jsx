@@ -112,6 +112,7 @@ export function RunProvider({ children }) {
   const lastPaceAlertTimeRef = useRef(0);
   const gracePeriodSecRef = useRef(0);
   const outOfZoneSecondsRef = useRef(0);
+  const pausedReminderSecondsRef = useRef(0); // 暫停計數器：防止無聲暫停白跑，每 45 秒發出警報提醒
 
   // ── Stale Closure 防護 Refs ──────────────────────────────────────────
   // Timer useEffect 的 setInterval callback 在建立時會「拍照」捕捉 state。
@@ -297,6 +298,7 @@ export function RunProvider({ children }) {
     lastPaceAlertTimeRef.current = 0;
     gracePeriodSecRef.current = 25; // 25s Grace Period on Start to prevent auto-pause trap
     outOfZoneSecondsRef.current = 0;
+    pausedReminderSecondsRef.current = 0;
 
     playBackgroundAudio();
 
@@ -334,6 +336,7 @@ export function RunProvider({ children }) {
   // Pause
   const pauseRun = () => {
     setIsPaused(true);
+    pausedReminderSecondsRef.current = 0;
     lowSpeedSecondsRef.current = 0;
     highSpeedSecondsRef.current = 0;
     if (settings.voiceCues) {
@@ -344,6 +347,7 @@ export function RunProvider({ children }) {
   // Resume
   const resumeRun = () => {
     setIsPaused(false);
+    pausedReminderSecondsRef.current = 0;
     isAutoPausedBySystemRef.current = false;
     lowSpeedSecondsRef.current = 0;
     highSpeedSecondsRef.current = 0;
@@ -485,6 +489,7 @@ export function RunProvider({ children }) {
     lowSpeedSecondsRef.current = 0;
     highSpeedSecondsRef.current = 0;
     isAutoPausedBySystemRef.current = false;
+    pausedReminderSecondsRef.current = 0;
     // 同步重置 Stale Closure 防護 Refs
     currentSpeedKmhRef.current = 0;
     distanceKmRef.current = 0;
@@ -873,6 +878,15 @@ export function RunProvider({ children }) {
       if (!isPaused) {
         setDurationSeconds((prevSec) => prevSec + 1);
         durationSecRef.current += 1;
+        pausedReminderSecondsRef.current = 0;
+      } else {
+        // 【保護機制二】暫停狀態循環警示：每 45 秒定時語音警示，徹底防止無聲暫停白跑
+        pausedReminderSecondsRef.current += 1;
+        if (pausedReminderSecondsRef.current % 45 === 0) {
+          if (settings.voiceCues) {
+            speakText('提醒！跑步目前處於暫停中', settings.voiceVolume ?? 1.0);
+          }
+        }
       }
       const nextSec = durationSecRef.current;
 
@@ -891,10 +905,8 @@ export function RunProvider({ children }) {
       }
 
       // Auto-Pause check when speed is too low (Requires 10 continuous seconds of speed < 2.0 km/h)
-      // 【關鍵修復】改讀 Ref 而非 state，避免 stale closure：
-      //   - distanceKmRef.current：GPS 每次更新時即時同步，不受 closure 影響
-      //   - currentSpeedKmhRef.current：同上，永遠是最新速度
-      if (settings.autoPause && !simulatorMode && !isPaused && gracePeriodSecRef.current <= 0 && nextSec >= 25 && distanceKmRef.current >= 0.05) {
+      // 【保護機制三：嚴格防呆】必須 settings.autoPause 嚴格為 true 時才執行，若為 false / undefined 絕對不進入低速判定
+      if (settings.autoPause === true && !simulatorMode && !isPaused && gracePeriodSecRef.current <= 0 && nextSec >= 25 && distanceKmRef.current >= 0.05) {
         const pauseThreshold = settings.autoPauseSpeedThresholdKmh || 2.0;
         if (currentSpeedKmhRef.current < pauseThreshold) {
           lowSpeedSecondsRef.current += 1;
