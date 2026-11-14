@@ -101,7 +101,7 @@ export function RunProvider({ children }) {
   const [isOutdoorView, setIsOutdoorView] = useState(false);
 
   // Real-time Weather & Air Quality State
-  const [currentWeather, setCurrentWeather] = useState(null);
+  const [currentWeather, setCurrentWeather] = useState(() => initialData ? (initialData.currentWeather || null) : null);
   const [isFetchingWeather, setIsFetchingWeather] = useState(false);
   const lastWeatherFetchRef = useRef({ time: 0, lat: 0, lng: 0 });
 
@@ -196,6 +196,7 @@ export function RunProvider({ children }) {
           kmSplits,
           targetGoal,
           simulatorMode,
+          currentWeather,
           lastAnnouncedKm: lastAnnouncedKmRef.current,
           kmStartTime: kmStartTimeRef.current,
           timestamp: Date.now()
@@ -206,7 +207,7 @@ export function RunProvider({ children }) {
     } else {
       localStorage.removeItem(ACTIVE_SESSION_KEY);
     }
-  }, [isTracking, isPaused, durationSeconds, distanceKm, currentSpeedKmh, calories, pathPoints, kmSplits, targetGoal, simulatorMode]);
+  }, [isTracking, isPaused, durationSeconds, distanceKm, currentSpeedKmh, calories, pathPoints, kmSplits, targetGoal, simulatorMode, currentWeather]);
 
   // Web Audio Background Keep-Alive Audio Loop (Prevents mobile OS browser sleep & tab eviction)
   // 【修復】原本的 Base64 WAV 只有 2 bytes 音訊資料（約 0.00025 秒），
@@ -318,11 +319,16 @@ export function RunProvider({ children }) {
         (pos) => {
           const { latitude, longitude } = pos.coords;
           if (latitude && longitude && lastWeatherFetchRef.current.time === 0) {
-            lastWeatherFetchRef.current = { time: Date.now(), lat: latitude, lng: longitude };
             setIsFetchingWeather(true);
             fetchCurrentWeatherAndAirQuality(latitude, longitude)
               .then((wData) => {
-                if (wData) setCurrentWeather(wData);
+                if (wData) {
+                  lastWeatherFetchRef.current = { time: Date.now(), lat: latitude, lng: longitude };
+                  setCurrentWeather(wData);
+                } else {
+                  // 若初次請求失敗，60 秒後允許再次重試
+                  lastWeatherFetchRef.current = { time: Date.now() - 19 * 60 * 1000, lat: latitude, lng: longitude };
+                }
               })
               .finally(() => setIsFetchingWeather(false));
           }
@@ -717,13 +723,17 @@ export function RunProvider({ children }) {
     const timeSinceLastWeather = now - lastWeatherFetchRef.current.time;
     const isFirstFetch = lastWeatherFetchRef.current.time === 0;
     const isStale = timeSinceLastWeather > 20 * 60 * 1000; // 20 mins cache
-    if ((isFirstFetch || isStale) && lat && lng) {
+    const needsRetry = !currentWeather && timeSinceLastWeather > 60 * 1000; // 1 min retry if missing
+    if ((isFirstFetch || isStale || needsRetry) && !isFetchingWeather && lat && lng) {
       lastWeatherFetchRef.current = { time: now, lat, lng };
       setIsFetchingWeather(true);
       fetchCurrentWeatherAndAirQuality(lat, lng)
         .then((wData) => {
           if (wData) {
             setCurrentWeather(wData);
+          } else {
+            // 若請求失敗，設定為 19 分鐘前，讓系統在 1 分鐘後自動重試，避免鎖死 20 分鐘
+            lastWeatherFetchRef.current = { time: Date.now() - 19 * 60 * 1000, lat, lng };
           }
         })
         .finally(() => setIsFetchingWeather(false));
@@ -1023,12 +1033,43 @@ export function RunProvider({ children }) {
   };
 
   const refreshWeather = async () => {
+    let lat = null;
+    let lng = null;
     if (pathPoints && pathPoints.length > 0) {
       const lastPt = pathPoints[pathPoints.length - 1];
+      lat = lastPt.lat;
+      lng = lastPt.lng;
+    } else if (lastValidGpsRef.current) {
+      lat = lastValidGpsRef.current.lat;
+      lng = lastValidGpsRef.current.lng;
+    } else if (lastWeatherFetchRef.current.lat && lastWeatherFetchRef.current.lng) {
+      lat = lastWeatherFetchRef.current.lat;
+      lng = lastWeatherFetchRef.current.lng;
+    }
+
+    if (lat && lng) {
       setIsFetchingWeather(true);
-      const data = await fetchCurrentWeatherAndAirQuality(lastPt.lat, lastPt.lng);
-      if (data) setCurrentWeather(data);
+      const data = await fetchCurrentWeatherAndAirQuality(lat, lng);
+      if (data) {
+        lastWeatherFetchRef.current = { time: Date.now(), lat, lng };
+        setCurrentWeather(data);
+      }
       setIsFetchingWeather(false);
+    } else if (typeof window !== 'undefined' && navigator.geolocation) {
+      setIsFetchingWeather(true);
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          const data = await fetchCurrentWeatherAndAirQuality(latitude, longitude);
+          if (data) {
+            lastWeatherFetchRef.current = { time: Date.now(), lat: latitude, lng: longitude };
+            setCurrentWeather(data);
+          }
+          setIsFetchingWeather(false);
+        },
+        () => setIsFetchingWeather(false),
+        { timeout: 6000, maximumAge: 60000 }
+      );
     }
   };
 

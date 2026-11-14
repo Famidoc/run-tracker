@@ -345,82 +345,85 @@ export function RunScreen({ setActiveTab }) {
             </div>
           </div>
 
-          {/* Outdoor Weather & Air Quality Status */}
-          {currentWeather && (
-            <div style={{
+          {/* Outdoor Weather & Air Quality Status (Always visible to prevent blank space & allow manual refresh) */}
+          <div
+            onClick={() => { if (!isFetchingWeather && refreshWeather) refreshWeather(); }}
+            title="點擊重新更新氣象與空氣品質"
+            style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
               gap: '10px',
               margin: '14px 0 8px',
+              cursor: 'pointer'
+            }}
+          >
+            {/* 氣溫 */}
+            <div style={{
+              background: '#0D1424',
+              border: '1.5px solid rgba(255, 183, 77, 0.4)',
+              borderRadius: '16px',
+              padding: '10px 4px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 0
             }}>
-              {/* 氣溫 */}
-              <div style={{
-                background: '#0D1424',
-                border: '1.5px solid rgba(255, 183, 77, 0.4)',
-                borderRadius: '16px',
-                padding: '10px 4px',
-                textAlign: 'center',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 0
-              }}>
-                <div style={{ fontSize: '13px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px' }}>
-                  氣溫
-                </div>
-                <div style={{ fontSize: '21px', fontWeight: '900', color: '#FFB74D', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
-                  <span style={{ fontSize: '17px' }}>🌡️</span>
-                  <span>{currentWeather.temp !== null ? `${currentWeather.temp}°C` : '--'}</span>
-                </div>
+              <div style={{ fontSize: '13px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px' }}>
+                {isFetchingWeather && !currentWeather ? '更新氣溫中' : '氣溫'}
               </div>
-
-              {/* 濕度 */}
-              <div style={{
-                background: '#0D1424',
-                border: '1.5px solid rgba(79, 195, 247, 0.4)',
-                borderRadius: '16px',
-                padding: '10px 4px',
-                textAlign: 'center',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 0
-              }}>
-                <div style={{ fontSize: '13px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px' }}>
-                  濕度
-                </div>
-                <div style={{ fontSize: '21px', fontWeight: '900', color: '#4FC3F7', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
-                  <span style={{ fontSize: '17px' }}>💧</span>
-                  <span>{currentWeather.humidity !== null ? `${currentWeather.humidity}%` : '--'}</span>
-                </div>
-              </div>
-
-              {/* PM2.5 */}
-              <div style={{
-                background: '#0D1424',
-                border: `1.5px solid ${currentWeather.pm25Info?.color || '#00E676'}66`,
-                borderRadius: '16px',
-                padding: '10px 4px',
-                textAlign: 'center',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 0
-              }}>
-                <div style={{ fontSize: '12px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-                  PM2.5 ({currentWeather.pm25Info?.label || '良好'})
-                </div>
-                <div style={{ fontSize: '21px', fontWeight: '900', color: currentWeather.pm25Info?.color || '#00E676', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
-                  <span style={{ fontSize: '17px' }}>🍃</span>
-                  <span>{currentWeather.pm25 !== null ? currentWeather.pm25 : '--'}</span>
-                  <span style={{ fontSize: '12px', fontWeight: '700', opacity: 0.85 }}>µg</span>
-                </div>
+              <div style={{ fontSize: '21px', fontWeight: '900', color: '#FFB74D', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
+                <span style={{ fontSize: '17px' }}>🌡️</span>
+                <span>{currentWeather?.temp !== null && currentWeather?.temp !== undefined ? `${currentWeather.temp}°C` : '--°C'}</span>
               </div>
             </div>
-          )}
+
+            {/* 濕度 */}
+            <div style={{
+              background: '#0D1424',
+              border: '1.5px solid rgba(79, 195, 247, 0.4)',
+              borderRadius: '16px',
+              padding: '10px 4px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 0
+            }}>
+              <div style={{ fontSize: '13px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px' }}>
+                {isFetchingWeather && !currentWeather ? '更新濕度中' : '濕度'}
+              </div>
+              <div style={{ fontSize: '21px', fontWeight: '900', color: '#4FC3F7', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
+                <span style={{ fontSize: '17px' }}>💧</span>
+                <span>{currentWeather?.humidity !== null && currentWeather?.humidity !== undefined ? `${currentWeather.humidity}%` : '--%'}</span>
+              </div>
+            </div>
+
+            {/* PM2.5 */}
+            <div style={{
+              background: '#0D1424',
+              border: `1.5px solid ${currentWeather?.pm25Info?.color || '#00E676'}66`,
+              borderRadius: '16px',
+              padding: '10px 4px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 0
+            }}>
+              <div style={{ fontSize: '12px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                {currentWeather?.pm25Info?.label ? `PM2.5 (${currentWeather.pm25Info.label})` : (isFetchingWeather ? '偵測空品中' : 'PM2.5 (點擊更新)')}
+              </div>
+              <div style={{ fontSize: '21px', fontWeight: '900', color: currentWeather?.pm25Info?.color || '#00E676', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
+                <span style={{ fontSize: '17px' }}>🍃</span>
+                <span>{currentWeather?.pm25 !== null && currentWeather?.pm25 !== undefined ? currentWeather.pm25 : '--'}</span>
+                <span style={{ fontSize: '12px', fontWeight: '700', opacity: 0.85 }}>µg</span>
+              </div>
+            </div>
+          </div>
 
           {/* 4 Large Metrics Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', margin: '20px 0' }}>
@@ -876,17 +879,22 @@ export function RunScreen({ setActiveTab }) {
 
         {/* Real-time Weather & Air Quality Bar (Active during run) */}
         {isTracking && (
-          <div style={{
-            marginTop: '12px',
-            padding: '8px 12px',
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: '12px'
-          }}>
+          <div
+            onClick={() => { if (!isFetchingWeather && refreshWeather) refreshWeather(); }}
+            title="點擊重新更新氣象與空氣品質"
+            style={{
+              marginTop: '12px',
+              padding: '8px 12px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
             {currentWeather ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#FFB74D' }}>
