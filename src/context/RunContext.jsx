@@ -327,7 +327,7 @@ export function RunProvider({ children }) {
                   setCurrentWeather(wData);
                 } else {
                   // 若初次請求失敗，60 秒後允許再次重試
-                  lastWeatherFetchRef.current = { time: Date.now() - 19 * 60 * 1000, lat: latitude, lng: longitude };
+                  lastWeatherFetchRef.current = { time: Date.now() - 9 * 60 * 1000, lat: latitude, lng: longitude };
                 }
               })
               .finally(() => setIsFetchingWeather(false));
@@ -722,7 +722,7 @@ export function RunProvider({ children }) {
     const now = Date.now();
     const timeSinceLastWeather = now - lastWeatherFetchRef.current.time;
     const isFirstFetch = lastWeatherFetchRef.current.time === 0;
-    const isStale = timeSinceLastWeather > 20 * 60 * 1000; // 20 mins cache
+    const isStale = timeSinceLastWeather > 10 * 60 * 1000; // 10 mins cache (synced with Taiwan CWA 10-min updates)
     const needsRetry = !currentWeather && timeSinceLastWeather > 60 * 1000; // 1 min retry if missing
     if ((isFirstFetch || isStale || needsRetry) && !isFetchingWeather && lat && lng) {
       lastWeatherFetchRef.current = { time: now, lat, lng };
@@ -732,8 +732,8 @@ export function RunProvider({ children }) {
           if (wData) {
             setCurrentWeather(wData);
           } else {
-            // 若請求失敗，設定為 19 分鐘前，讓系統在 1 分鐘後自動重試，避免鎖死 20 分鐘
-            lastWeatherFetchRef.current = { time: Date.now() - 19 * 60 * 1000, lat, lng };
+            // 若請求失敗，設定為 9 分鐘前，讓系統在 1 分鐘後自動重試，避免鎖死 10 分鐘
+            lastWeatherFetchRef.current = { time: Date.now() - 9 * 60 * 1000, lat, lng };
           }
         })
         .finally(() => setIsFetchingWeather(false));

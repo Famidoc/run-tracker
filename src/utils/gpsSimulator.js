@@ -22,7 +22,17 @@ const RIVERSIDE_PARK_NODES = [
   { lat: 25.0782, lng: 121.5451 }
 ];
 
+// National Chung Hsing University (NCHU) 400m Track around 24.1235, 120.6753
+const NCHU_TRACK_NODES = [
+  { lat: 24.1241, lng: 120.6750 },
+  { lat: 24.1241, lng: 120.6756 },
+  { lat: 24.1229, lng: 120.6756 },
+  { lat: 24.1229, lng: 120.6750 },
+  { lat: 24.1241, lng: 120.6750 }
+];
+
 export const PRESET_ROUTES = [
+  { id: 'nchu', name: '中興大學操場 400m 標準跑道', nodes: NCHU_TRACK_NODES },
   { id: 'daan', name: '大安森林公園環狀路線 (2.5 km)', nodes: DAAN_PARK_NODES },
   { id: 'riverside', name: '美堤河濱景觀跑道 (5.0 km)', nodes: RIVERSIDE_PARK_NODES }
 ];

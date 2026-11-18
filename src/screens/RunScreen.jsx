@@ -370,8 +370,8 @@ export function RunScreen({ setActiveTab }) {
               justifyContent: 'center',
               minWidth: 0
             }}>
-              <div style={{ fontSize: '13px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px' }}>
-                {isFetchingWeather && !currentWeather ? '更新氣溫中' : '氣溫'}
+              <div style={{ fontSize: '12px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                {isFetchingWeather && !currentWeather ? '更新氣溫中' : (currentWeather?.tempStation ? `氣溫 (${currentWeather.tempStation})` : '氣溫')}
               </div>
               <div style={{ fontSize: '21px', fontWeight: '900', color: '#FFB74D', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
                 <span style={{ fontSize: '17px' }}>🌡️</span>
@@ -392,8 +392,8 @@ export function RunScreen({ setActiveTab }) {
               justifyContent: 'center',
               minWidth: 0
             }}>
-              <div style={{ fontSize: '13px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px' }}>
-                {isFetchingWeather && !currentWeather ? '更新濕度中' : '濕度'}
+              <div style={{ fontSize: '12px', color: '#8E9BAE', fontWeight: '700', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                {isFetchingWeather && !currentWeather ? '更新濕度中' : (currentWeather?.isLocalSensor ? '濕度 (實測)' : '濕度')}
               </div>
               <div style={{ fontSize: '21px', fontWeight: '900', color: '#4FC3F7', display: 'flex', alignItems: 'center', gap: '3px', lineHeight: 1.1 }}>
                 <span style={{ fontSize: '17px' }}>💧</span>
@@ -900,7 +900,7 @@ export function RunScreen({ setActiveTab }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#FFB74D' }}>
                   <Thermometer size={14} color="#FFB74D" />
                   <span style={{ fontWeight: '700' }}>{currentWeather.temp !== null ? `${currentWeather.temp}°C` : '--'}</span>
-                  <span style={{ fontSize: '10px', color: '#8E9BAE' }}>氣溫</span>
+                  <span style={{ fontSize: '10px', color: '#8E9BAE' }}>{currentWeather.tempStation || '氣溫'}</span>
                 </div>
                 <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.1)' }} />
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#4FC3F7' }}>
